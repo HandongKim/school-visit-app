@@ -15,12 +15,17 @@ const GoogleLogin = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-green-100">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 to-green-100">
+      {/* 학교 로고 */}
+      <img src="logo.jpg" alt="풍생중학교 로고" className="w-32 h-32 mb-6" />
+
+      {/* 로그인 박스 */}
       <div className="bg-white p-6 rounded-xl shadow max-w-xs w-full text-center">
-        <h2 className="text-lg font-bold mb-4 text-gray-700">Google 로그인</h2>
+        <h1 className="text-xl font-bold text-gray-800 mb-2">풍생중학교 출결 관리 시스템</h1>
+        <h2 className="text-md font-semibold mb-4 text-gray-600">Google 로그인</h2>
         <button
           onClick={handleLogin}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold"
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold w-full"
         >
           Google 계정으로 로그인
         </button>

@@ -1,5 +1,6 @@
 // src/App.js
 import React, { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import GoogleLogin from './components/GoogleLogin';
 import RoleRegisterForm from './components/RoleRegisterForm';
 import VisitRequestForm from './components/VisitRequestForm';
@@ -8,10 +9,13 @@ import LeaveRequestForm from './components/LeaveRequestForm';
 import AdminVisitorView from './components/AdminVisitorView';
 import ExternalVisitForm from './components/ExternalVisitForm';
 import SettingsPage from './components/SettingsPage';
+import AttendancePage from './pages/AttendancePage'; // ✅ 새로 추가될 페이지
+import AdminStudentUpload from './pages/AdminStudentUpload'; // 상단 import 추가
+import HomeroomAttendancePage from './pages/HomeroomAttendancePage';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
-function App() {
+function AppContent() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [userInfo, setUserInfo] = useState(null);
   const [page, setPage] = useState('');
@@ -65,9 +69,9 @@ function App() {
           <button onClick={() => setPage('leave')} className="bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-xl shadow w-60 font-semibold">조퇴/외출 기록</button>
         )}
 
-        {role === 'subject' || role === 'homeroom' ? (
+        {(role === 'subject' || role === 'homeroom') && (
           <button onClick={() => setPage('external')} className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-xl shadow w-60 font-semibold">외부인 방문 기록</button>
-        ) : null}
+        )}
 
         {role === 'gatekeeper' && (
           <button onClick={() => setPage('admin')} className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-xl shadow w-60 font-semibold">외부인 / 조퇴 현황</button>
@@ -114,4 +118,15 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/attendance-dev" element={<AttendancePage />} />
+        <Route path="/admin-students" element={<AdminStudentUpload />} />
+        <Route path="/homeroom-attendance" element={<HomeroomAttendancePage />} />
+        <Route path="/*" element={<AppContent />} />
+      </Routes>
+    </Router>
+  );
+}
