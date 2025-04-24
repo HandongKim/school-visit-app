@@ -1,45 +1,61 @@
+// src/pages/HomeroomAttendancePage.jsx
+
 import React, { useEffect, useState, useRef } from 'react';
-import { db } from '../firebase';
+// Firebase 설정을 alias 경로로 import
+import { db } from '@/firebase/firebaseConfig';
+// Firestore 함수들
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 
+// 출결 상태 및 사유 옵션
 const attendanceOptions = ['출석', '결석', '지각', '조퇴', '결과'];
-const reasonOptions = ['인정', '질병', '기타', '미인정'];
+const reasonOptions     = ['인정', '질병', '기타', '미인정'];
 
 export default function HomeroomAttendancePage() {
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [selectedPeriod, setSelectedPeriod] = useState('조회');
-  const [selectedGrade, setSelectedGrade] = useState('1');
-  const [selectedClass, setSelectedClass] = useState('1');
-  const [students, setStudents] = useState([]);
-  const [attendanceData, setAttendanceData] = useState({});
-  const [modal, setModal] = useState({ open: false, student: null });
-  const [saveMessage, setSaveMessage] = useState('');
+  // -- 필터 상태 관리 ----------------------------------------
+  const [selectedDate, setSelectedDate]     = useState(
+    () => new Date().toISOString().split('T')[0]
+  ); // 기본값: 오늘 날짜 (YYYY-MM-DD)
+  const [selectedPeriod, setSelectedPeriod] = useState('조회'); // 조회 모드 기본값
+  const [selectedGrade, setSelectedGrade]   = useState('1');    // 1~3학년
+  const [selectedClass, setSelectedClass]   = useState('1');    // 1~5반
 
+  // -- 데이터 상태 관리 --------------------------------------
+  const [students, setStudents]           = useState([]);     // 반 학생 목록
+  const [attendanceData, setAttendanceData] = useState({});    // { studentId: { status, reason } }
+  const [saveMessage, setSaveMessage]     = useState('');     // 저장 결과 메시지
+
+  // 자동 저장 타이머 ref
   const autoSaveTimer = useRef(null);
 
-  // 🔄 반 학생 목록 불러오기
+  // -- 반 학생 목록 불러오기 ----------------------------------
   useEffect(() => {
-    const fetchStudents = async () => {
+    async function fetchStudents() {
       const path = `students/${selectedGrade}/${selectedClass}`;
       try {
-        const snapshot = await getDocs(collection(db, path));
-        const studentList = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })).sort((a, b) => a.number - b.number);
-        setStudents(studentList);
-      } catch (error) {
-        console.error('학생 데이터를 불러오는 중 오류:', error);
+        const snap = await getDocs(collection(db, path));
+        // Firestore 문서를 배열로 변환 후 번호 순 정렬
+        const list = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => a.number - b.number);
+        setStudents(list);
+      } catch (err) {
+        console.error('학생 데이터 조회 오류:', err);
       }
-    };
+    }
     fetchStudents();
   }, [selectedGrade, selectedClass]);
 
-  const handleCellClick = (student) => {
+  // -- 셀 클릭 시 모달 열기 ------------------------------------
+  const handleCellClick = student => {
     setModal({ open: true, student });
   };
 
+  // -- 모달 상태 관리 ----------------------------------------
+  const [modal, setModal] = useState({ open: false, student: null });
+
+  // -- 출결 선택 후 상태 저장 및 자동 저장 트리거 -------------
   const handleSelect = (status, reason) => {
+    // '출석'이면 사유 null 처리
     const saveReason = status === '출석' ? null : reason;
     setAttendanceData(prev => ({
       ...prev,
@@ -47,119 +63,119 @@ export default function HomeroomAttendancePage() {
     }));
     setModal({ open: false, student: null });
 
-    // 자동 저장 타이머 시작
-    if (autoSaveTimer.current) {
-      clearTimeout(autoSaveTimer.current);
-    }
+    // 이전 타이머 클리어 후 3초 뒤 자동 저장
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       handleSave('auto');
     }, 3000);
   };
 
-  // 🧾 저장 함수
+  // -- 저장 함수 (수동 / 자동) --------------------------------
   const handleSave = async (type = 'manual') => {
-    const pathBase = `attendance/${selectedDate}/${selectedGrade}_${selectedClass}`;
+    const basePath = `attendance/${selectedDate}/${selectedGrade}_${selectedClass}`;
     try {
-      const promises = students.map((student) => {
+      // 각 학생별로 Firestore setDoc 호출
+      const promises = students.map(student => {
         const att = attendanceData[student.id];
         if (!att) return Promise.resolve();
-
-        const ref = doc(db, `${pathBase}/${student.id}`);
+        const ref = doc(db, `${basePath}/${student.id}`);
         return setDoc(ref, {
-          name: student.name,
-          number: student.number,
-          period: selectedPeriod,
-          status: att.status,
-          reason: att.reason || null,
-          timestamp: new Date()
+          name:      student.name,
+          number:    student.number,
+          period:    selectedPeriod,
+          status:    att.status,
+          reason:    att.reason || null,
+          timestamp: new Date(),
         });
       });
-
       await Promise.all(promises);
 
+      // 수동 저장 시에만 메시지 띄우기
       if (type === 'manual') {
         setSaveMessage('✅ 저장이 완료되었습니다.');
         setTimeout(() => setSaveMessage(''), 3000);
       }
-
-    } catch (error) {
-      console.error('저장 실패:', error);
+    } catch (err) {
+      console.error('저장 실패:', err);
       setSaveMessage('❌ 저장에 실패했습니다.');
     }
   };
 
-  const displayStatus = (student) => {
+  // -- 상태 표시 및 색상 헬퍼 -------------------------------
+  const displayStatus = student => {
     const att = attendanceData[student.id];
     if (!att) return '출석';
     return att.reason ? `${att.status} (${att.reason})` : att.status;
   };
-
-  const getColor = (status) => {
-    return status === '결석' ? 'text-red-500'
-      : status === '지각' ? 'text-yellow-500'
-      : status === '조퇴' ? 'text-purple-500'
-      : status === '결과' ? 'text-green-500'
-      : 'text-gray-600';
-  };
+  const getColor = status =>
+    status === '결석' ? 'text-red-500'
+    : status === '지각' ? 'text-yellow-500'
+    : status === '조퇴' ? 'text-purple-500'
+    : status === '결과' ? 'text-green-500'
+    : 'text-gray-600';
 
   return (
     <div className="p-6 relative">
+      {/* 제목 */}
       <h1 className="text-2xl font-bold mb-4">[담임용] 출석부</h1>
 
-      {/* 선택창 */}
+      {/* 필터 선택창: 날짜 / 교시 / 학년 / 반 */}
       <div className="flex gap-4 flex-wrap mb-4">
+        {/* 날짜 */}
         <div>
           <label className="block font-semibold mb-1">날짜</label>
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={e => setSelectedDate(e.target.value)}
             className="border px-2 py-1 rounded"
           />
         </div>
-
+        {/* 교시 */}
         <div>
           <label className="block font-semibold mb-1">교시</label>
           <select
             value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
+            onChange={e => setSelectedPeriod(e.target.value)}
             className="border px-2 py-1 rounded"
           >
             <option value="조회">조회</option>
             {[...Array(7)].map((_, i) => (
-              <option key={i + 1} value={`${i + 1}교시`}>{i + 1}교시</option>
+              <option key={i+1} value={`${i+1}교시`}>
+                {i+1}교시
+              </option>
             ))}
           </select>
         </div>
-
+        {/* 학년 */}
         <div>
           <label className="block font-semibold mb-1">학년</label>
           <select
             value={selectedGrade}
-            onChange={(e) => setSelectedGrade(e.target.value)}
+            onChange={e => setSelectedGrade(e.target.value)}
             className="border px-2 py-1 rounded"
           >
-            {[1, 2, 3].map(g => (
-              <option key={g} value={g}>{g}학년</option>
+            {[1,2,3].map(g => (
+              <option key={g} value={String(g)}>{g}학년</option>
             ))}
           </select>
         </div>
-
+        {/* 반 */}
         <div>
           <label className="block font-semibold mb-1">반</label>
           <select
             value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
+            onChange={e => setSelectedClass(e.target.value)}
             className="border px-2 py-1 rounded"
           >
-            {[1, 2, 3, 4, 5].map(c => (
-              <option key={c} value={c}>{c}반</option>
+            {[1,2,3,4,5].map(c => (
+              <option key={c} value={String(c)}>{c}반</option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* 저장 버튼 */}
+      {/* 저장 버튼 및 메시지 */}
       <div className="mb-4">
         <button
           onClick={() => handleSave('manual')}
@@ -168,7 +184,9 @@ export default function HomeroomAttendancePage() {
           저장
         </button>
         {saveMessage && (
-          <p className="mt-2 text-sm text-green-600 font-semibold">{saveMessage}</p>
+          <p className="mt-2 text-sm text-green-600 font-semibold">
+            {saveMessage}
+          </p>
         )}
       </div>
 
@@ -188,18 +206,17 @@ export default function HomeroomAttendancePage() {
               </td>
             </tr>
           ) : (
-            students.map((student) => {
-              const att = attendanceData[student.id];
-              const color = getColor(att?.status);
-
+            students.map(student => {
+              const statusText = displayStatus(student);
+              const colorClass = getColor(attendanceData[student.id]?.status);
               return (
                 <tr key={student.id}>
                   <td className="border p-2">{student.name}</td>
                   <td
-                    className={`border p-2 cursor-pointer font-semibold ${color}`}
+                    className={`border p-2 cursor-pointer font-semibold ${colorClass}`}
                     onClick={() => handleCellClick(student)}
                   >
-                    {displayStatus(student)}
+                    {statusText}
                   </td>
                 </tr>
               );
@@ -216,9 +233,12 @@ export default function HomeroomAttendancePage() {
               {modal.student.name} 출결 상태 선택
             </h2>
 
-            {attendanceOptions.map((status) => (
+            {attendanceOptions.map(status => (
               <div key={status} className="mb-2">
+                {/* 출결 상태 타이틀 */}
                 <div className="font-semibold mb-1">{status}</div>
+
+                {/* 출석은 단일 버튼, 나머지는 사유 선택 */}
                 {status === '출석' ? (
                   <button
                     onClick={() => handleSelect('출석', null)}
@@ -228,7 +248,7 @@ export default function HomeroomAttendancePage() {
                   </button>
                 ) : (
                   <div className="flex gap-2 flex-wrap">
-                    {reasonOptions.map((reason) => (
+                    {reasonOptions.map(reason => (
                       <button
                         key={reason}
                         onClick={() => handleSelect(status, reason)}
@@ -242,6 +262,7 @@ export default function HomeroomAttendancePage() {
               </div>
             ))}
 
+            {/* 모달 닫기 버튼 */}
             <button
               onClick={() => setModal({ open: false, student: null })}
               className="mt-4 text-sm text-gray-500 underline"
