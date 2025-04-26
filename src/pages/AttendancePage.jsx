@@ -1,179 +1,249 @@
+// src/pages/AttendancePage.jsx
+
 import React, { useState, useEffect } from 'react';
-// Firebase 설정을 가져옵니다 (alias 경로 사용)
-import { db } from '@/firebase/firebaseConfig';
-import { collection, getDocs } from 'firebase/firestore';
+import { db, auth } from '../firebase/firebaseConfig';
+import {
+  collection,
+  getDocs,
+  doc,
+  setDoc,
+} from 'firebase/firestore';
 
 // 출결 상태 옵션 및 사유 옵션 정의
 const attendanceOptions = ['출석', '결석', '지각', '조퇴', '결과'];
-const reasonOptions = ['인정', '질병', '기타', '미인정'];
+const reasonOptions     = ['인정', '질병', '기타', '미인정'];
+
+// 테이블에 표시할 모든 “교시” 컬럼 (조회 포함)
+const periods = ['조회','1교시','2교시','3교시','4교시','5교시','6교시','7교시'];
 
 export default function AttendancePage() {
-  // 날짜, 교시, 학년/반 선택 상태 관리
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [selectedPeriod, setSelectedPeriod] = useState('1');
+  // 날짜·학년·반 선택
+  const [selectedDate, setSelectedDate]   = useState(() => new Date().toISOString().split('T')[0]);
   const [selectedGrade, setSelectedGrade] = useState('1');
   const [selectedClass, setSelectedClass] = useState('1');
-  
-  // 학생 목록 및 출결 데이터 관리
-  const [students, setStudents] = useState([]);
+
+  // 현재 활성화된 교시 (헤더 클릭으로 변경)
+  const [selectedPeriod, setSelectedPeriod] = useState('조회');
+
+  // 세션 ID 자동 생성
+  const sessionId = `${selectedDate}_${selectedGrade}-${selectedClass}_${selectedPeriod}`;
+  const [currentSession, setCurrentSession] = useState(null);
+
+  // 학생 목록 및 출결 데이터
+  const [students, setStudents]             = useState([]);
   const [attendanceData, setAttendanceData] = useState({});
 
-  // 모달 상태 관리 (팝업 창 띄움)
-  const [modal, setModal] = useState({ open: false, student: null });
+  // 모달 상태
+  const [modal, setModal] = useState({
+    open:   false,
+    student: null,
+    period:  null,
+    status:  null,
+  });
 
-  // Firestore에서 출결 데이터 가져오기
+  // 1) 학생 명단 로드
   useEffect(() => {
-    async function fetchData() {
-      // 선택된 날짜/교시/반 기준으로 Firestore 컬렉션에서 문서 조회
-      const querySnapshot = await getDocs(
-        collection(
-          db,
-          'attendance',
-          selectedDate,
-          `${selectedGrade}-${selectedClass}`,
-          selectedPeriod
-        )
-      );
-      // 가져온 문서 데이터를 키-값 객체 형태로 변환
-      setAttendanceData(
-        querySnapshot.docs.reduce((acc, doc) => {
-          acc[doc.id] = doc.data();
-          return acc;
-        }, {})
-      );
+    async function fetchStudents() {
+      const col = collection(db,'students',selectedGrade,selectedClass);
+      const snap = await getDocs(col);
+      setStudents(snap.docs.map(d=>({ id:d.id, ...d.data() })));
     }
-    fetchData();
-  }, [selectedDate, selectedPeriod, selectedGrade, selectedClass]);
+    fetchStudents();
+  },[selectedGrade,selectedClass]);
+
+  // 2) 세션이 바뀔 때마다 Firestore에 세션 문서 생성 & 엔트리 로드
+  useEffect(() => {
+    async function startAndLoad() {
+      // 세션 생성(merge)
+      const ref = doc(db,'attendanceSessions',sessionId);
+      const user = auth.currentUser;
+      await setDoc(ref,{
+        date: selectedDate,
+        grade: selectedGrade,
+        class: selectedClass,
+        period: selectedPeriod,
+        enteredBy: user.uid,
+        enteredByName: user.displayName,
+        createdAt: new Date()
+      },{ merge:true });
+      setCurrentSession(sessionId);
+
+      // 엔트리 로드
+      const col = collection(db,'attendanceSessions',sessionId,'entries');
+      const snap= await getDocs(col);
+      const obj = snap.docs.reduce((acc,d)=>{
+        const data=d.data();
+        acc[d.id]={ status:data.status, reason:data.reason, period:data.period };
+        return acc;
+      },{});
+      setAttendanceData(obj);
+    }
+    startAndLoad();
+  },[sessionId]);
+
+  // 출결 저장 함수(엔트리별)
+  const handleSelect = async (studentId, period, status, reason) => {
+    if (!currentSession) return;
+    const ref = doc(db,'attendanceSessions',currentSession,'entries',studentId);
+    const user = auth.currentUser;
+    const payload = {
+      period,
+      status,
+      reason: status==='출석'?null:reason,
+      timestamp: new Date(),
+      editedBy: user.uid,
+      editedByName:user.displayName
+    };
+    await setDoc(ref,payload,{ merge:true });
+    setAttendanceData(prev=>({
+      ...prev,
+      [studentId]:{ status:payload.status, reason:payload.reason, period }
+    }));
+    setModal({ open:false, student:null, period:null, status:null });
+  };
+
+  // 모달 열기
+  const openModal = (student, period) => {
+    setModal({ open:true, student, period, status:null });
+  };
+
+  // “저장” 버튼 핸들러
+  const saveAll = () => {
+    alert('출결 정보가 저장되었습니다.');
+  };
 
   return (
-    <div className="p-6 relative">
-      {/* 페이지 제목 */}
-      <h1 className="text-2xl font-bold mb-4">출석부 (테스트)</h1>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">출석부</h1>
 
-      {/* 필터 선택창: 날짜 / 교시 / 학년 / 반 */}
-      <div className="flex gap-4 mb-4">
+      {/* 필터 & 저장 버튼 */}
+      <div className="flex flex-wrap gap-4 mb-6 items-end">
+        {/* 날짜 */}
         <div>
           <label className="block font-semibold mb-1">날짜</label>
           <input
             type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={e=>setSelectedDate(e.target.value)}
             className="border px-2 py-1 rounded"
           />
         </div>
-
-        <div>
-          <label className="block font-semibold mb-1">교시</label>
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="border px-2 py-1 rounded"
-          >
-            {[...Array(7)].map((_, i) => (
-              <option key={i + 1} value={i + 1}>{i + 1}교시</option>
-            ))}
-          </select>
-        </div>
-
+        {/* 학년 */}
         <div>
           <label className="block font-semibold mb-1">학년</label>
           <select
             value={selectedGrade}
-            onChange={(e) => setSelectedGrade(e.target.value)}
+            onChange={e=>setSelectedGrade(e.target.value)}
             className="border px-2 py-1 rounded"
           >
-            {[1, 2, 3].map((g) => (
-              <option key={g} value={g}>{g}학년</option>
+            {[1,2,3].map(g=>(
+              <option key={g} value={String(g)}>{g}학년</option>
             ))}
           </select>
         </div>
-
+        {/* 반 */}
         <div>
           <label className="block font-semibold mb-1">반</label>
           <select
             value={selectedClass}
-            onChange={(e) => setSelectedClass(e.target.value)}
+            onChange={e=>setSelectedClass(e.target.value)}
             className="border px-2 py-1 rounded"
           >
-            {[...Array(10)].map((_, c) => (
-              <option key={c + 1} value={c + 1}>{c + 1}반</option>
+            {[...Array(10)].map((_,c)=>(
+              <option key={c+1} value={String(c+1)}>{c+1}반</option>
             ))}
           </select>
         </div>
+        {/* 저장 */}
+        <button
+          onClick={saveAll}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          저장
+        </button>
       </div>
 
-      {/* 학생 출결 테이블 */}
-      <table className="min-w-full border-collapse">
-        <thead>
-          <tr>
-            <th className="border p-2">학생 이름</th>
-            <th className="border p-2">출결 상태</th>
-          </tr>
-        </thead>
-        <tbody>
-          {students.length === 0 ? (
+      {/* 다교시 표 */}
+      <div className="overflow-auto max-h-[60vh] border border-gray-300">
+        <table className="w-full border-collapse table-fixed">
+          <thead className="bg-gray-100">
             <tr>
-              <td colSpan="2" className="border p-4 text-gray-400">
-                선택한 반의 학생 정보가 없습니다.
-              </td>
+              <th className="p-2 border w-1/6 sticky top-0 bg-gray-100 z-10">학생 이름</th>
+              {periods.map(p=>(
+                <th
+                  key={p}
+                  className={`
+                    p-2 border sticky top-0 bg-gray-100 z-10
+                    text-center cursor-pointer
+                    ${selectedPeriod===p?'bg-blue-200':''}
+                  `}
+                  onClick={()=>setSelectedPeriod(p)}
+                >
+                  {p}
+                </th>
+              ))}
             </tr>
-          ) : (
-            students.map((student) => {
-              const att = attendanceData[student.id];
-              const statusText = att
-                ? att.reason
-                  ? `${att.status} (${att.reason})`
-                  : att.status
-                : '출석';
+          </thead>
+          <tbody>
+            {students.length===0 ? (
+              <tr>
+                <td colSpan={periods.length+1} className="p-4 text-center text-gray-500">
+                  선택한 반의 학생 정보가 없습니다.
+                </td>
+              </tr>
+            ) : students.map(student=>(
+              <tr key={student.id}>
+                <td className="p-2 border">{student.name}</td>
+                {periods.map(p=>{
+                  const att=attendanceData[student.id];
+                  const cellText = att?.period===p
+                    ? (att.reason?`${att.status} (${att.reason})`:att.status)
+                    : '';
+                  const cellColor = p===selectedPeriod
+                    ? 'bg-blue-50'
+                    : '';
+                  const isEditable = p===selectedPeriod;
+                  return (
+                    <td
+                      key={p}
+                      className={`p-2 border text-center ${cellColor} ${isEditable?'cursor-pointer hover:bg-gray-100':''}`}
+                      onClick={()=>isEditable && openModal(student,p)}
+                    >
+                      {cellText}
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-              // 상태별 텍스트 색상 지정
-              const colorClass =
-                att?.status === '결석' ? 'text-red-500' :
-                att?.status === '지각' ? 'text-yellow-500' :
-                att?.status === '조퇴' ? 'text-purple-500' :
-                att?.status === '결과' ? 'text-green-500' :
-                'text-gray-600';
-
-              return (
-                <tr key={student.id}>
-                  <td className="border p-2">{student.name}</td>
-                  {/* 상태 셀 클릭 시 모달 열기 */}
-                  <td
-                    className={`border p-2 cursor-pointer font-semibold ${colorClass}`}
-                    onClick={() => setModal({ open: true, student })}
-                  >
-                    {statusText}
-                  </td>
-                </tr>
-              );
-            })
-          )}
-        </tbody>
-      </table>
-
-      {/* 상태 변경 모달 */}
+      {/* 모달 */}
       {modal.open && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg w-80">
-            <h2 className="text-lg font-bold mb-4">출결 상태 선택</h2>
-            {attendanceOptions.map((status) => (
+            <h2 className="text-lg font-bold mb-4">
+              {modal.student.name} ({modal.period}) 출결 상태 선택
+            </h2>
+            {attendanceOptions.map(status=>(
               <button
                 key={status}
-                onClick={() => handleSelect(status, null)}
+                onClick={()=> status==='출석'
+                  ? handleSelect(modal.student.id,modal.period,'출석',null)
+                  : setModal(m=>({...m,status}))}
                 className="block w-full text-left border px-3 py-1 mb-2 rounded hover:bg-gray-100"
               >
                 {status}
               </button>
             ))}
-
-            {/* 사유 선택 (지각·결석 등일 때) */}
-            {attendanceOptions.includes(modal.student?.status) && (
+            {modal.status&&modal.status!=='출석'&&(
               <div className="mt-4">
                 <div className="font-semibold mb-2">사유 선택</div>
-                {reasonOptions.map((reason) => (
+                {reasonOptions.map(reason=>(
                   <button
                     key={reason}
-                    onClick={() => handleSelect(modal.student.status, reason)}
+                    onClick={()=>handleSelect(modal.student.id,modal.period,modal.status,reason)}
                     className="border px-3 py-1 mr-2 mb-2 rounded hover:bg-gray-100"
                   >
                     {reason}
@@ -181,9 +251,8 @@ export default function AttendancePage() {
                 ))}
               </div>
             )}
-
             <button
-              onClick={() => setModal({ open: false, student: null })}
+              onClick={()=>setModal({open:false,student:null,period:null,status:null})}
               className="mt-4 text-sm text-gray-500 underline"
             >
               취소
@@ -193,10 +262,4 @@ export default function AttendancePage() {
       )}
     </div>
   );
-}
-
-// handleSelect 함수는 상태/사유 선택 후 Firestore에 업데이트 하는 로직을 담습니다.
-async function handleSelect(status, reason) {
-  // TODO: Firestore 업데이트 로직 구현
-  // 예: await setDoc(doc(db, 'attendance', ...), { status, reason });
 }

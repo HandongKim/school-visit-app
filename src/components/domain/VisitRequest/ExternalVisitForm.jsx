@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 // Firebase 설정을 alias 경로로 import (@ maps to src/)
-import { db } from '@/firebase/firebaseConfig';
+import { db } from '../../../firebase/firebaseConfig';
 // Firestore에 문서 추가를 위한 함수
 import { collection, addDoc } from 'firebase/firestore';
 

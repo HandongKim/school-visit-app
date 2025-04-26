@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 // Firebase 설정을 alias 경로로 import (@ maps to src/)
-import { db } from '@/firebase/firebaseConfig';
+import { db } from '../../../firebase/firebaseConfig';
 // Firestore 쿼리용 함수 및 Timestamp 불러오기
 import {
   collection,

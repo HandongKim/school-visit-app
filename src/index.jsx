@@ -5,9 +5,9 @@ import ReactDOM from 'react-dom/client';
 // 전역 스타일(CSS + Tailwind)
 import './index.css';
 // App 컴포넌트를 alias 경로로 import (@ maps to src/)
-import App from '@/App';
+import App from './App';
 // 웹 바이탈 측정용 함수 (필요 시 사용)
-import reportWebVitals from '@/reportWebVitals';
+import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

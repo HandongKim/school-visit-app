@@ -5,25 +5,25 @@ import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 // alias(@)를 이용해 공통 UI 컴포넌트 불러오기
-import GoogleLogin         from '@components/ui/GoogleLogin';
-import RoleRegisterForm    from '@components/ui/RoleRegisterForm';
-import SettingsPage        from '@components/ui/SettingsPage';
+import GoogleLogin         from './components/ui/GoogleLogin';
+import RoleRegisterForm    from './components/ui/RoleRegisterForm';
+import SettingsPage        from './components/ui/SettingsPage';
 
 // 도메인별 컴포넌트 import (VisitRequest 모듈)
-import VisitRequestForm    from '@components/domain/VisitRequest/VisitRequestForm';
-import ApprovalScreen      from '@components/domain/VisitRequest/ApprovalScreen';
-import LeaveRequestForm    from '@components/domain/VisitRequest/LeaveRequestForm';
-import ExternalVisitForm   from '@components/domain/VisitRequest/ExternalVisitForm';
-import AdminVisitorView    from '@components/domain/VisitRequest/AdminVisitorView';
+import VisitRequestForm    from './components/domain/VisitRequest/VisitRequestForm';
+import ApprovalScreen      from './components/domain/VisitRequest/ApprovalScreen';
+import LeaveRequestForm    from './components/domain/VisitRequest/LeaveRequestForm';
+import ExternalVisitForm   from './components/domain/VisitRequest/ExternalVisitForm';
+import AdminVisitorView    from './components/domain/VisitRequest/AdminVisitorView';
 
 // 페이지 컴포넌트 import (pages 폴더)
-import AttendancePage          from '@/pages/AttendancePage';
-import HomeroomAttendancePage  from '@/pages/HomeroomAttendancePage';
-import AdminStudentUpload      from '@/pages/AdminStudentUpload';
+import AttendancePage          from './pages/AttendancePage';
+import HomeroomAttendancePage  from './pages/HomeroomAttendancePage';
+import AdminStudentUpload      from './pages/AdminStudentUpload';
 
 // Firebase 설정 파일(alias 경로) 및 Firestore 함수 불러오기
-import { db } from '@/firebase/firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase/firebaseConfig';
+import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
 
 function AppContent() {
   // -- 사용자 인증/정보 상태 관리 --------------------------------

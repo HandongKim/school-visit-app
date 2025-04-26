@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 // Excel 파싱 라이브러리
 import * as XLSX from 'xlsx';
 // Firebase 설정을 alias 경로로 import
-import { db } from '@/firebase/firebaseConfig';
+import { db } from '../firebase/firebaseConfig';
 // Firestore 쓰기 함수들
 import { doc, setDoc } from 'firebase/firestore';
 

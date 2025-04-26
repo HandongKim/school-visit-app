@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 // Firebase 설정(alias 경로) 및 Firestore 함수 import
-import { db } from '@/firebase/firebaseConfig';
+import { db } from '../../firebase/firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 export default function SettingsPage({ user, onUpdate }) {
