@@ -9,7 +9,7 @@ import { getFirestore } from 'firebase/firestore';
 // Firebase 프로젝트 설정 (Firebase console에서 발급된 값)
 const firebaseConfig = {
   apiKey: 'AIzaSyAjhuEp6jqLdeS7-arTf2IrW6w6rnFjJJs',
-  authDomain: 'school-visit-fdb03.firebaseapp.com',
+  authDomain: 'school-visit-fdb03.web.app',
   projectId: 'school-visit-fdb03',
   storageBucket: 'school-visit-fdb03.firebasestorage.app',
   messagingSenderId: '57920252837',
