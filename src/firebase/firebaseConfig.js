@@ -2,7 +2,7 @@
 
 import { initializeApp } from 'firebase/app';
 // Firebase Authentication과 Google Provider
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } from 'firebase/auth';
 // Firestore (DB) 서비스
 import { getFirestore } from 'firebase/firestore';
 
@@ -19,7 +19,9 @@ const firebaseConfig = {
 // Firebase 앱 초기화
 const app = initializeApp(firebaseConfig);
 
-// Firebase Auth, Google Provider, Firestore 객체 생성 및 export
-export const auth     = getAuth(app);
+// — 퍼시스턴스 설정 추가 —
+export const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence)
+  .catch(err => console.error('Auth persistence 설정 오류:', err));
 export const provider = new GoogleAuthProvider();
 export const db       = getFirestore(app);
