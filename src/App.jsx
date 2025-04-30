@@ -24,6 +24,7 @@ import AdminVisitorView    from './components/domain/VisitRequest/AdminVisitorVi
 import AttendancePage          from './pages/AttendancePage';
 import HomeroomAttendancePage  from './pages/HomeroomAttendancePage';
 import AdminStudentUpload      from './pages/AdminStudentUpload';
+import AttendanceReportPage    from './pages/AttendanceReportPage';
 
 function AppContent() {
   // 로그인 후 네비게이션용
@@ -133,6 +134,7 @@ function AppContent() {
         >
           로그아웃
         </button>
+
         {/* 개발 환경에서만 노출되는 테스트 페이지 버튼 */}
         {process.env.NODE_ENV !== 'production' && (
           <button
@@ -140,6 +142,15 @@ function AppContent() {
             className="btn-gray"
           >
             (테스트) 출석 페이지 보기
+          </button>
+        )}
+        {/* 개발 환경에서만 노출되는 출결 통계 버튼 */}
+        {process.env.NODE_ENV !== 'production' && (
+          <button
+            onClick={() => navigate('/attendance-report')}
+            className="btn-yellow"
+          >
+            (테스트) 출결 통계
           </button>
         )}
       </div>
@@ -183,6 +194,7 @@ export default function App() {
   return (
     <Router>
       <Routes>
++       <Route path="/attendance-report" element={<AttendanceReportPage />} />
         <Route path="/attendance-dev"      element={<AttendancePage />} />
         <Route path="/admin-students"      element={<AdminStudentUpload />} />
         <Route path="/homeroom-attendance" element={<HomeroomAttendancePage />} />
