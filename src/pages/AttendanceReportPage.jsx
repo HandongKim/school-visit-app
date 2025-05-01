@@ -1,11 +1,13 @@
 // src/pages/AttendanceReportPage.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
 
 // 교시 목록
 const periods = ['조회','1교시','2교시','3교시','4교시','5교시','6교시','7교시'];
+// 집계할 상태 키 (모듈 레벨로 이동해 안정적인 참조)
+const STATUS_KEYS = ['결석','지각','조퇴','결과'];
 
 // 날짜 범위 생성
 function getDateRange(start, end) {
@@ -20,47 +22,57 @@ function getDateRange(start, end) {
 }
 
 export default function AttendanceReportPage() {
-  const [startDate, setStartDate]     = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() - 6);
-    return d.toISOString().slice(0,10);
-  });
+  const [startDate, setStartDate]     = useState(() => { const d = new Date(); d.setDate(d.getDate()-6); return d.toISOString().slice(0,10); });
   const [endDate, setEndDate]         = useState(() => new Date().toISOString().slice(0,10));
   const [selectedGrade, setSelectedGrade] = useState('1');
   const [selectedClass, setSelectedClass] = useState('1');
   const [reportData, setReportData]   = useState([]);
-  const [loading, setLoading]         = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  // 집계할 상태
-  const STATUS_KEYS = ['결석','지각','조퇴','결과'];
+  // CSV 다운로드 함수
+  const downloadCSV = useCallback(() => {
+    if (reportData.length === 0) return;
+    const headers = ['이름','통계'];
+    const rows = reportData.map(r => [
+      `"${r.name.replace(/"/g, '""')}"`,
+      `"${r.summary.replace(/"/g, '""')}"`
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `attendance_report_${selectedGrade}-${selectedClass}_${startDate}_to_${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [reportData, selectedGrade, selectedClass, startDate, endDate]);
 
-  async function fetchReport() {
+  // 데이터 조회 함수
+  const fetchReport = useCallback(async () => {
     setLoading(true);
     try {
       // 1) 학생 목록
-      const stuSnap = await getDocs(collection(db, 'students', selectedGrade, selectedClass));
-      const students = stuSnap.docs.map(d => ({ id: d.id, name: d.data().name }));
+      const stuSnap = await getDocs(collection(db,'students',selectedGrade,selectedClass));
+      const students = stuSnap.docs.map(d=>({ id:d.id, name:d.data().name }));
 
-      // 2) 결과 맵 초기화
+      // 2) 초기 맵 생성
       const resultMap = {};
-      students.forEach(s => {
+      students.forEach(s=>{
         resultMap[s.id] = { name: s.name };
-        STATUS_KEYS.forEach(key => {
-          resultMap[s.id][key] = { reasons: {} };
-        });
+        STATUS_KEYS.forEach(key => { resultMap[s.id][key] = { reasons: {} }; });
       });
 
-      // 3) 날짜+교시 조합으로 모든 세션 조회
+      // 3) 날짜·교시 조합으로 세션 목록 생성
       const dateRange = getDateRange(startDate, endDate);
-      const sessions = [];
-      dateRange.forEach(date => {
-        periods.forEach(pr => {
-          sessions.push({ sid: `${date}_${selectedGrade}-${selectedClass}_${pr}`, date });
-        });
-      });
+      const sessions = dateRange.flatMap(date =>
+        periods.map(pr => ({ sid: `${date}_${selectedGrade}-${selectedClass}_${pr}`, date }))
+      );
 
-      // 4) 모든 세션 순회하여 entries 집계
+      // 4) 세션별 entries 집계
       for (const { sid, date } of sessions) {
-        const entSnap = await getDocs(collection(db, 'attendanceSessions', sid, 'entries'));
+        const entSnap = await getDocs(collection(db,'attendanceSessions',sid,'entries'));
         entSnap.docs.forEach(ed => {
           const studId = ed.id.split('_')[0];
           const { status, reason } = ed.data();
@@ -73,16 +85,15 @@ export default function AttendanceReportPage() {
         });
       }
 
-      // 5) 배열 변환: Set으로 중복 제거 후 count 및 summary
+      // 5) 배열 변환: 중복 제거 후 count와 summary 조합
       const dataArray = students.map(s => {
         const stats = resultMap[s.id];
         const lines = [];
         STATUS_KEYS.forEach(key => {
           const buckets = stats[key].reasons;
-          // 날짜별 중복 제거
-          const uniqueDates = Object.values(buckets)
-            .reduce((acc, ds) => acc.concat(Array.from(ds)), [])
-            .filter((v,i,a) => a.indexOf(v) === i);
+          const uniqueDates = Array.from(new Set(
+            Object.values(buckets).flatMap(setDates => Array.from(setDates))
+          ));
           const count = uniqueDates.length;
           if (count > 0) {
             const parts = Object.entries(buckets).map(
@@ -100,16 +111,17 @@ export default function AttendanceReportPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [startDate, endDate, selectedGrade, selectedClass]);
 
-  useEffect(() => { fetchReport(); }, [startDate, endDate, selectedGrade, selectedClass]);
+  // Effect: fetchReport 종속성에 useCallback으로 래핑된 함수 포함
+  useEffect(() => {
+    fetchReport();
+  }, [fetchReport]);
 
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">출결 통계</h1>
-
       <div className="flex flex-wrap gap-4 mb-6">
-        {/* 기간 & 학급 필터 */}
         <div>
           <label className="block text-sm font-medium mb-1">시작 날짜</label>
           <input
@@ -135,7 +147,9 @@ export default function AttendanceReportPage() {
             onChange={e => setSelectedGrade(e.target.value)}
             className="border px-2 py-1 rounded"
           >
-            {[1,2,3].map(g => <option key={g} value={String(g)}>{g}학년</option>)}
+            {[1,2,3].map(g => (
+              <option key={g} value={String(g)}>{g}학년</option>
+            ))}
           </select>
         </div>
         <div>
@@ -151,15 +165,22 @@ export default function AttendanceReportPage() {
           </select>
         </div>
       </div>
-
-      <button
-        onClick={fetchReport}
-        disabled={loading}
-        className="btn-teal px-4 py-2 mb-6"
-      >
-        {loading ? '조회 중...' : '통계 조회'}
-      </button>
-
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={fetchReport}
+          disabled={loading}
+          className="btn-teal px-4 py-2"
+        >
+          {loading ? '조회 중...' : '통계 조회'}
+        </button>
+        <button
+          onClick={downloadCSV}
+          disabled={loading || reportData.length === 0}
+          className="btn-gray px-4 py-2"
+        >
+          CSV 다운로드
+        </button>
+      </div>
       <table className="w-full table-fixed border-collapse">
         <thead className="bg-gray-100">
           <tr>
