@@ -25,8 +25,8 @@ export default function AttendancePage() {
   // --- 인증 상태 ---
   const [currentUser, setCurrentUser] = useState(null);
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, user => setCurrentUser(user));
-    return unsubscribe;
+    const unsub = onAuthStateChanged(auth, user => setCurrentUser(user));
+    return unsub;
   }, []);
 
   // --- 필터 state ---
@@ -37,10 +37,10 @@ export default function AttendancePage() {
 
   // --- 데이터 state ---
   const [students, setStudents]             = useState([]);
-  const [attendanceData, setAttendanceData] = useState({});  // { studentId: { 기간: {status,reason} } }
-  const [visitData, setVisitData]           = useState({});  // { studentId: { 기간: '보건실'|'상담실' } }
+  const [attendanceData, setAttendanceData] = useState({});
+  const [visitData, setVisitData]           = useState({});
 
-  // --- 모달 state & 레퍼런스 ---
+  // --- 모달 state & ref ---
   const [modal, setModal] = useState({ open:false, student:null, period:null, status:null });
   const tableRef = useRef(null);
 
@@ -80,59 +80,43 @@ export default function AttendancePage() {
     loadAttendance();
   }, [selectedDate, selectedGrade, selectedClass, currentUser]);
 
-  // 3) 승인된 방문 로드 (createdAt 범위 쿼리 + 클라이언트 필터링)
+  // 3) 승인된 방문 로드 (createdAt 범위 + 클라이언트 필터링)
   useEffect(() => {
     if (!currentUser) return;
     async function loadVisits() {
       try {
-        // 해당 날짜 00:00 ~ 23:59 범위 계산
+        // 오늘 00:00~23:59 범위
         const start = new Date(selectedDate + 'T00:00:00');
         const end   = new Date(selectedDate + 'T23:59:59.999');
-
-        // createdAt 범위만 쿼리
         const q = query(
           collection(db, 'visits'),
           where('createdAt', '>=', Timestamp.fromDate(start)),
           where('createdAt', '<=', Timestamp.fromDate(end))
         );
-
         const snap = await getDocs(q);
-
-        // ↓↓↓ 여기에 디버그 로그를 추가 ↓↓↓
-        console.log('▶ visits 쿼리 결과 count:', snap.docs.length);
-        console.log('▶ visits raw data:', snap.docs.map(d => d.data()));
-
         const map  = {};
 
         snap.docs.forEach(docSnap => {
           const data = docSnap.data();
-
-          // ↓↓↓ 원본 period 확인 ↓↓↓
-          console.log(`raw period for ${data.studentId}:`, data.period);
-          
-          // 클라이언트 필터: grade, class, 승인 여부
+          // grade/class 필터
           if (
             String(data.grade) !== selectedGrade ||
-            String(data.class) !== selectedClass ||
-            !data.approvedByHomeroom ||
-            !data.approvedBySubject
+            String(data.class) !== selectedClass
+          ) return;
+          // 승인 여부 필터
+          if (
+            data.status?.homeroom !== '승인' ||
+            data.status?.subject  !== '승인'
           ) return;
 
-          // period 키 정규화: 숫자면 "교시" 붙이고, 0은 "조회"
-          let key = data.period;
-          if (typeof key === 'number' || /^\d+$/.test(String(key))) {
-            key = key === 0 ? '조회' : `${key}교시`;
-          }
+          // 학생 식별 키: name
+          const studentName = data.name;
+          // 교시 키: time 필드 그대로 사용 (예: '3교시', '조회')
+          const periodKey = data.time;
 
-          // ↓↓↓ 매핑 후 key 확인 ↓↓↓
-          console.log(`mapped period key for ${data.studentId}:`, key);          
-
-          map[data.studentId] = map[data.studentId] || {};
-          map[data.studentId][key] = data.type;  // '보건실' or '상담실'
+          map[studentName] = map[studentName] || {};
+          map[studentName][periodKey] = data.type; // '보건실' or '상담실'
         });
-
-        // ↓↓↓ 완성된 map 확인 ↓↓↓
-        console.log('▶ visitData map:', map);
 
         setVisitData(map);
       } catch (err) {
@@ -145,7 +129,8 @@ export default function AttendancePage() {
   // 4) 출결 저장 핸들러
   const handleSelect = async (studentId, period, status, reason) => {
     const baseId = `${selectedDate}_${selectedGrade}-${selectedClass}`;
-    // “결석”은 전체 교시에 적용
+
+    // “결석”은 전 교시
     if (status === '결석') {
       const payload = { status, reason };
       const updated = { ...attendanceData };
@@ -158,8 +143,7 @@ export default function AttendancePage() {
           { merge:true }
         );
         updated[studentId] = {
-          ...(updated[studentId]||{}), 
-          [pr]: payload
+          ...(updated[studentId]||{}), [pr]: payload
         };
       }
       setAttendanceData(updated);
@@ -171,36 +155,32 @@ export default function AttendancePage() {
       const ref     = doc(db, 'attendanceSessions', sid, 'entries', entryId);
 
       if (status === '출석') {
-        // 출석은 기록 삭제
         await deleteDoc(ref);
         setAttendanceData(prev => {
-          const upd = { ...prev };
-          if (upd[studentId]) {
-            delete upd[studentId][period];
-            if (!Object.keys(upd[studentId]).length) {
-              delete upd[studentId];
-            }
+          const u = { ...prev };
+          if (u[studentId]) {
+            delete u[studentId][period];
+            if (!Object.keys(u[studentId]).length) delete u[studentId];
           }
-          return upd;
+          return u;
         });
       } else {
-        // 지각/조퇴/결과
         const payload = { status, reason };
         await setDoc(ref, payload, { merge:true });
         setAttendanceData(prev => ({
           ...prev,
           [studentId]: {
-            ...(prev[studentId]||{}), 
-            [period]: payload
+            ...(prev[studentId]||{}), [period]: payload
           }
         }));
       }
     }
+
     setModal({ open:false, student:null, period:null, status:null });
   };
 
-  const openModal = (student, period) =>
-    setModal({ open:true, student, period, status:null });
+  const openModal = (stu, per) =>
+    setModal({ open:true, student:stu, period:per, status:null });
   const saveAll = () => alert('출결 정보가 저장되었습니다.');
 
   return (
@@ -225,7 +205,7 @@ export default function AttendancePage() {
             onChange={e=>setSelectedGrade(e.target.value)}
             className="border rounded px-2 py-1"
           >
-            {[1,2,3].map(g => (
+            {[1,2,3].map(g=>(
               <option key={g} value={String(g)}>{g}학년</option>
             ))}
           </select>
@@ -237,7 +217,7 @@ export default function AttendancePage() {
             onChange={e=>setSelectedClass(e.target.value)}
             className="border rounded px-2 py-1"
           >
-            {[...Array(5)].map((_,i) => (
+            {[...Array(5)].map((_,i)=>(
               <option key={i+1} value={String(i+1)}>{i+1}반</option>
             ))}
           </select>
@@ -251,34 +231,31 @@ export default function AttendancePage() {
           <thead className="bg-gray-200 sticky top-0">
             <tr>
               <th className="p-2 border sticky left-0 bg-gray-200 z-20">이름</th>
-              {periods.map(p => (
+              {periods.map(p=>(
                 <th
                   key={p}
                   className={`p-2 border text-center cursor-pointer ${
-                    selectedPeriod===p ? 'bg-teal-50' : ''
-                  }`}
+                    selectedPeriod===p ? 'bg-teal-50':''}`}
                   onClick={()=>setSelectedPeriod(p)}
-                >
-                  {p}
-                </th>
+                >{p}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {students.map(s => (
+            {students.map(s=>(
               <tr key={s.id} className="hover:bg-gray-50">
                 <td className="p-2 border sticky left-0 bg-white z-10 whitespace-nowrap">
                   {s.name}
                 </td>
-                {periods.map(p => {
+                {periods.map(p=>{
                   const cell  = attendanceData[s.id]?.[p];
-                  const visit = visitData[s.id]?.[p];
+                  // 학생 이름 기준으로 visits 매핑
+                  const visit = visitData[s.name]?.[p];
                   return (
                     <td
                       key={p}
                       className={`p-2 border text-center whitespace-normal ${
-                        selectedPeriod===p ? 'bg-teal-50' : ''
-                      }`}
+                        selectedPeriod===p?'bg-teal-50':''}`}
                       onClick={()=>selectedPeriod===p&&openModal(s,p)}
                     >
                       {cell ? (
