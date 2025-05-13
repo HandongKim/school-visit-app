@@ -86,6 +86,7 @@ export default function SettingsPage({ user, onUpdate }) {
           <option value="subject">교과교사</option>
           <option value="nurse">보건교사</option>
           <option value="counselor">상담교사</option>
+          <option value="welfare">교육복지사</option>
           <option value="gatekeeper">정문관리자</option>
         </select>
 
