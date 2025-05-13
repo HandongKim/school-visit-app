@@ -6,16 +6,18 @@ import { db } from '../../../firebase/firebaseConfig';
 // Firestore에 문서 추가를 위한 함수들
 import { collection, addDoc } from 'firebase/firestore';
 
-export default function LeaveRequestForm() {
+export default function LeaveRequestForm({ userInfo }) {
+  const isHomeroom = userInfo?.role === 'homeroom';
+
   // -- 폼 상태 관리 --------------------------------------------
   const [form, setForm] = useState({
-    grade: '',         // 학년
-    class: '',         // 반
-    name: '',          // 학생 이름
-    hour: '08',        // 시 (기본값 08)
-    minute: '00',      // 분 (기본값 00)
-    reason: '',        // 조퇴/외출 사유
-    type: '조퇴',      // 유형: 조퇴 또는 외출
+    grade:    userInfo?.grade   || '',  // 담임 선생님의 학년
+    class:    userInfo?.class   || '',  // 담임 선생님의 반
+    name:     '',                      // 학생 이름
+    hour:     '08',                    // 시 (기본값 08)
+    minute:   '00',                    // 분 (기본값 00)
+    reason:   '',                      // 조퇴/외출 사유
+    type:     '조퇴',                  // 유형: 조퇴 또는 외출
   });
 
   // -- 입력값 변경 핸들러 --------------------------------------
@@ -27,27 +29,28 @@ export default function LeaveRequestForm() {
   // -- 폼 제출 핸들러 ----------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // "HH:MM" 형식 시간 문자열 생성
-    const time = `${form.hour}:${form.minute}`;
+    const time = `${form.hour}:${form.minute}`; // "HH:MM" 형식
 
     try {
-      // 'leaves' 컬렉션에 새 문서 추가
       await addDoc(collection(db, 'leaves'), {
-        grade:    form.grade,
-        class:    form.class,
-        name:     form.name,
+        grade:     form.grade,
+        class:     form.class,
+        name:      form.name,
         time,
-        reason:   form.reason,
-        type:     form.type,
-        createdAt: new Date(),  // 생성 시간
+        reason:    form.reason,
+        type:      form.type,
+        createdAt: new Date(),
       });
       alert('✅ 조퇴/외출 기록이 저장되었습니다!');
-      // 폼 초기화
-      setForm({
-        grade: '', class: '', name: '',
-        hour: '08', minute: '00',
-        reason: '', type: '조퇴',
-      });
+      // 폼 초기화 (학년·반은 유지)
+      setForm(prev => ({
+        ...prev,
+        name:   '',
+        hour:   '08',
+        minute: '00',
+        reason: '',
+        type:   '조퇴',
+      }));
     } catch (error) {
       console.error('저장 실패:', error);
       alert('❌ 기록 저장 중 오류가 발생했습니다.');
@@ -65,14 +68,18 @@ export default function LeaveRequestForm() {
 
       {/* 입력 폼 */}
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* 학년/반 입력 */}
+
+        {/* 학년/반 입력 (담임 교사는 변경 불가) */}
         <div className="grid grid-cols-2 gap-2">
           <input
             name="grade"
             value={form.grade}
             onChange={handleChange}
             placeholder="학년"
-            className="border p-2 rounded text-sm"
+            className={`border p-2 rounded text-sm ${
+              isHomeroom ? 'bg-gray-100 cursor-not-allowed' : ''
+            }`}
+            disabled={isHomeroom}
             required
           />
           <input
@@ -80,7 +87,10 @@ export default function LeaveRequestForm() {
             value={form.class}
             onChange={handleChange}
             placeholder="반"
-            className="border p-2 rounded text-sm"
+            className={`border p-2 rounded text-sm ${
+              isHomeroom ? 'bg-gray-100 cursor-not-allowed' : ''
+            }`}
+            disabled={isHomeroom}
             required
           />
         </div>

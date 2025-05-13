@@ -104,7 +104,8 @@ export default function ApprovalScreen({ role, mode, userInfo }) {
           (!subjectOk && homeroomOk && gradeMatch && classMatch) || bothApproved
         );
       if (role === 'subject') return bothApproved;
-      if (role === 'nurse' || role === 'counselor') return true;
+      if (role === 'nurse' || role === 'counselor' || role === 'welfare')
+        return true;
     }
     return false;
   });
