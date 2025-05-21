@@ -19,6 +19,11 @@ You may also see any lint errors in the console.
 Launches the test runner in the interactive watch mode.\
 See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
 
+### Test configuration
+
+Firebase and other test settings can be provided via an `.env.test` file. Copy
+`.env.test` to `.env` or set the variables directly before running `npm test`.
+
 ### `npm run build`
 
 Builds the app for production to the `build` folder.\
