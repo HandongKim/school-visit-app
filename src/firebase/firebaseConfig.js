@@ -17,6 +17,18 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID,
 };
 
+// 모든 환경 변수가 존재하는지 확인하여 누락 시 명확한 오류를 발생시킵니다.
+const missingKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingKeys.length > 0) {
+  const msg = `Firebase 설정 누락: ${missingKeys.join(', ')}`;
+  // 콘솔에 메시지를 남기고 예외를 던져 앱 초기화 자체를 막습니다.
+  console.error(msg);
+  throw new Error(msg);
+}
+
 // Firebase 앱 초기화
 const app = initializeApp(firebaseConfig);
 
