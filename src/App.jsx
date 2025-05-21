@@ -19,6 +19,7 @@ import ApprovalScreen     from './components/domain/VisitRequest/ApprovalScreen'
 import LeaveRequestForm   from './components/domain/VisitRequest/LeaveRequestForm';
 import ExternalVisitForm  from './components/domain/VisitRequest/ExternalVisitForm';
 import AdminVisitorView   from './components/domain/VisitRequest/AdminVisitorView';
+import BreakVisitForm     from './components/domain/VisitRequest/BreakVisitForm';
 
 import AttendancePage          from './pages/AttendancePage';
 import HomeroomAttendancePage  from './pages/HomeroomAttendancePage';
@@ -42,6 +43,7 @@ function AppContent({ userInfo }) {
           {(role === 'nurse' || role === 'counselor' || role === 'welfare') && (
             <>
               <button onClick={() => setPage('home')}   className="btn-teal">방문 신청</button>
+              <button onClick={() => setPage('break')}  className="btn-teal">쉬는 시간 방문</button>
               <button onClick={() => setPage('status')} className="btn-teal">요청 내역</button>
             </>
           )}
@@ -89,8 +91,8 @@ function AppContent({ userInfo }) {
 
       <main>
         {page === 'home'     && <VisitRequestForm   userInfo={userInfo} />}
+        {page === 'break'    && <BreakVisitForm     userInfo={userInfo} />}
         {page === 'approve'  && <ApprovalScreen     role={role} mode="approve" userInfo={userInfo} />}
-        {page === 'status'   && <ApprovalScreen     role={role} mode="status"  userInfo={userInfo} />}
         {page === 'leave'    && <LeaveRequestForm   userInfo={userInfo} />}
         {page === 'external' && <ExternalVisitForm  userInfo={userInfo} />}
         {page === 'admin'    && <AdminVisitorView /> }
@@ -146,6 +148,7 @@ export default function App() {
       <Routes>
         {/* 개별 라우트 */}
         <Route path="/visit-request" element={<VisitRequestForm userInfo={userInfo} />} />
+        <Route path="/break-visit"  element={<BreakVisitForm userInfo={userInfo} />} />
         <Route path="/attendance-dev"      element={<AttendancePage />} />
         <Route path="/attendance-report"   element={<AttendanceReportPage />} />
         <Route path="/admin-students"      element={<AdminStudentUpload />} />
