@@ -1,7 +1,0 @@
-// jsconfig.json
-{
-  "compilerOptions": {
-    "baseUrl": "src/"    // 이제 src/ 아래가 import의 루트가 됩니다
-  },
-  "include": ["src"]
-}
