@@ -1,208 +1,221 @@
-// src/pages/AttendanceReportPage.jsx
+// d:\school-visit-app\src\pages\AttendanceReportPage.jsx
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { db } from '../firebase/firebaseConfig';
-import { collection, getDocs } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { db } from '../firebase/firebaseConfig'; // Firebase Firestore 인스턴스 임포트
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore'; // Firestore 함수 임포트
 
-// 교시 목록
-const periods = ['조회','1교시','2교시','3교시','4교시','5교시','6교시','7교시'];
-// 집계할 상태 키 (모듈 레벨로 이동해 안정적인 참조)
-const STATUS_KEYS = ['결석','지각','조퇴','결과'];
+/**
+ * @file AttendanceReportPage.jsx
+ * @description (개발/테스트용) 특정 기간 또는 특정 학급의 출결 통계 및 보고서를 조회하는 페이지 컴포넌트입니다.
+ * (현재는 기본 구조와 필터링 UI만 있으며, 실제 데이터 집계 및 보고서 생성 로직은 구현 필요)
+ */
 
-// 날짜 범위 생성
-function getDateRange(start, end) {
-  const dates = [];
-  const curr = new Date(start);
-  const last = new Date(end);
-  while (curr <= last) {
-    dates.push(curr.toISOString().slice(0,10));
-    curr.setDate(curr.getDate() + 1);
-  }
-  return dates;
-}
-
+/**
+ * AttendanceReportPage 컴포넌트
+ * @returns {JSX.Element} 출결 보고서 조회 페이지 UI
+ */
 export default function AttendanceReportPage() {
-  const [startDate, setStartDate]     = useState(() => { const d = new Date(); d.setDate(d.getDate()-6); return d.toISOString().slice(0,10); });
-  const [endDate, setEndDate]         = useState(() => new Date().toISOString().slice(0,10));
-  const [selectedGrade, setSelectedGrade] = useState('1');
-  const [selectedClass, setSelectedClass] = useState('1');
-  const [reportData, setReportData]   = useState([]);
-  const [loading, setLoading] = useState(false);
+  // 필터링 옵션을 관리하는 상태입니다.
+  const [filterStartDate, setFilterStartDate] = useState(''); // 조회 시작 날짜
+  const [filterEndDate, setFilterEndDate] = useState('');   // 조회 종료 날짜
+  const [filterGrade, setFilterGrade] = useState('');       // 조회 학년
+  const [filterClassNum, setFilterClassNum] = useState('');   // 조회 반
 
-  // CSV 다운로드 함수
-  const downloadCSV = useCallback(() => {
-    if (reportData.length === 0) return;
-    const headers = ['이름','통계'];
-    const rows = reportData.map(r => [
-      `"${r.name.replace(/"/g, '""')}"`,
-      `"${r.summary.replace(/"/g, '""')}"`
-    ].join(','));
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `attendance_report_${selectedGrade}-${selectedClass}_${startDate}_to_${endDate}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  }, [reportData, selectedGrade, selectedClass, startDate, endDate]);
+  // 조회된 출결 데이터를 저장하는 상태입니다. (실제 데이터 구조는 집계 방식에 따라 달라짐)
+  const [reportData, setReportData] = useState(null);
+  // 데이터 로딩 상태를 관리합니다.
+  const [isLoading, setIsLoading] = useState(false);
+  // 오류 메시지를 저장하는 상태입니다.
+  const [error, setError] = useState('');
 
-  // 데이터 조회 함수
-  const fetchReport = useCallback(async () => {
-    setLoading(true);
+  /**
+   * 선택된 필터 조건에 따라 Firestore에서 출결 데이터를 조회하고 집계하는 비동기 함수입니다.
+   * (이 함수의 실제 구현은 복잡하며, 데이터 구조 및 요구사항에 따라 크게 달라집니다.)
+   */
+  const fetchAndGenerateReport = async () => {
+    // 필수 필터 조건 유효성 검사 (예: 시작일, 종료일)
+    if (!filterStartDate || !filterEndDate) {
+      alert('조회 시작일과 종료일을 모두 선택해주세요.');
+      return;
+    }
+    if (new Date(filterStartDate) > new Date(filterEndDate)) {
+      alert('시작일은 종료일보다 이전이거나 같아야 합니다.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    setReportData(null); // 이전 보고서 데이터 초기화
+
     try {
-      // 1) 학생 목록
-      const stuSnap = await getDocs(collection(db,'students',selectedGrade,selectedClass));
-      const students = stuSnap.docs.map(d=>({ id:d.id, name:d.data().name }));
+      // --- Firestore에서 데이터 조회 ---
+      // 1. 'attendance' 컬렉션에서 기간 내의 모든 출결 문서를 가져옵니다.
+      //    문서 ID가 'YYYY-MM-DD_학년_반' 형식이거나, 'date' 필드가 있다고 가정합니다.
+      //    Firestore 쿼리는 범위 필터(>, < 등)를 하나의 필드에만 적용할 수 있는 제한이 있으므로,
+      //    날짜 범위가 넓거나 데이터가 많으면 클라이언트 측에서 처리하기 어려울 수 있습니다.
+      //    이 경우 Firebase Functions (Cloud Functions)를 사용한 백엔드 집계가 더 효율적입니다.
 
-      // 2) 초기 맵 생성
-      const resultMap = {};
-      students.forEach(s=>{
-        resultMap[s.id] = { name: s.name };
-        STATUS_KEYS.forEach(key => { resultMap[s.id][key] = { reasons: {} }; });
-      });
-
-      // 3) 날짜·교시 조합으로 세션 목록 생성
-      const dateRange = getDateRange(startDate, endDate);
-      const sessions = dateRange.flatMap(date =>
-        periods.map(pr => ({ sid: `${date}_${selectedGrade}-${selectedClass}_${pr}`, date }))
+      // 예시: 'date' 필드를 기준으로 기간 내 문서 조회 (인덱싱 필요)
+      const attendanceCollectionRef = collection(db, 'attendance');
+      let q = query(attendanceCollectionRef,
+        where('date', '>=', filterStartDate),
+        where('date', '<=', filterEndDate)
       );
 
-      // 4) 세션별 entries 집계
-      for (const { sid, date } of sessions) {
-        const entSnap = await getDocs(collection(db,'attendanceSessions',sid,'entries'));
-        entSnap.docs.forEach(ed => {
-          const studId = ed.id.split('_')[0];
-          const { status, reason } = ed.data();
-          if (status && status !== '출석' && resultMap[studId]) {
-            const bucket = resultMap[studId][status].reasons;
-            const key = reason || '사유없음';
-            if (!bucket[key]) bucket[key] = new Set();
-            bucket[key].add(date);
-          }
-        });
+      // 학년 필터 추가 (선택된 경우)
+      if (filterGrade) {
+        q = query(q, where('grade', '==', filterGrade));
+      }
+      // 반 필터 추가 (선택된 경우, 학년도 선택되어야 함)
+      if (filterGrade && filterClassNum) {
+        q = query(q, where('classNum', '==', filterClassNum));
       }
 
-      // 5) 배열 변환: 중복 제거 후 count와 summary 조합
-      const dataArray = students.map(s => {
-        const stats = resultMap[s.id];
-        const lines = [];
-        STATUS_KEYS.forEach(key => {
-          const buckets = stats[key].reasons;
-          const uniqueDates = Array.from(new Set(
-            Object.values(buckets).flatMap(setDates => Array.from(setDates))
-          ));
-          const count = uniqueDates.length;
-          if (count > 0) {
-            const parts = Object.entries(buckets).map(
-              ([r, ds]) => `${r}: ${Array.from(ds).join(', ')}`
-            );
-            lines.push(`${key} ${count}회(${parts.join(', ')})`);
-          }
-        });
-        return { name: stats.name, summary: lines.join(' ') || '0회' };
+      const querySnapshot = await getDocs(q);
+      const attendanceDocs = querySnapshot.docs.map(doc => ({id: doc.id, ...doc.data()}));
+
+      if (attendanceDocs.length === 0) {
+        setReportData({ message: '선택한 조건에 해당하는 출결 데이터가 없습니다.' });
+        setIsLoading(false);
+        return;
+      }
+
+      // --- 데이터 집계 로직 (클라이언트 측 예시 - 단순화됨) ---
+      // 실제로는 더 정교한 집계 로직이 필요합니다.
+      // (예: 학생별 결석일수, 지각횟수, 출석률 등)
+      let totalStudentsProcessed = 0;
+      const summary = {
+        totalAttendanceRecords: attendanceDocs.length,
+        statusCounts: {}, // { '출석': 100, '지각': 5, '결석(병결)': 2, ... }
+        // 추가적인 통계 정보...
+      };
+
+      attendanceDocs.forEach(doc => {
+        if (doc.statuses) { // statuses 객체가 있는지 확인
+          Object.values(doc.statuses).forEach(status => {
+            summary.statusCounts[status] = (summary.statusCounts[status] || 0) + 1;
+            totalStudentsProcessed++;
+          });
+        }
       });
+      summary.totalStudentsProcessed = totalStudentsProcessed;
 
-      setReportData(dataArray);
+
+      // 집계된 데이터를 reportData 상태에 저장합니다.
+      setReportData(summary);
+
     } catch (err) {
-      console.error('통계 조회 오류:', err);
+      console.error("출결 보고서 생성 중 오류:", err);
+      setError('보고서 생성 중 오류가 발생했습니다.');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, [startDate, endDate, selectedGrade, selectedClass]);
+  };
 
-  // Effect: fetchReport 종속성에 useCallback으로 래핑된 함수 포함
-  useEffect(() => {
-    fetchReport();
-  }, [fetchReport]);
+  // 폼 제출 핸들러 (실제로는 버튼 클릭 등으로 fetchAndGenerateReport 호출)
+  const handleSubmitFilters = (e) => {
+    e.preventDefault();
+    fetchAndGenerateReport();
+  };
 
+  // 출결 보고서 조회 페이지 UI를 렌더링합니다.
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">출결 통계</h1>
-      <div className="flex flex-wrap gap-4 mb-6">
-        <div>
-          <label className="block text-sm font-medium mb-1">시작 날짜</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={e => setStartDate(e.target.value)}
-            className="border px-2 py-1 rounded"
-          />
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-6 text-center">출결 보고서 (테스트)</h1>
+
+      {/* 필터링 옵션 폼 */}
+      <form onSubmit={handleSubmitFilters} className="mb-8 p-6 bg-white rounded-lg shadow-md space-y-4">
+        <h2 className="text-xl font-semibold text-gray-700 border-b pb-2">조회 조건 설정</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="filterStartDate" className="block text-sm font-medium text-gray-700">조회 시작일</label>
+            <input
+              type="date"
+              id="filterStartDate"
+              value={filterStartDate}
+              onChange={(e) => setFilterStartDate(e.target.value)}
+              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+              required
+            />
+          </div>
+          <div>
+            <label htmlFor="filterEndDate" className="block text-sm font-medium text-gray-700">조회 종료일</label>
+            <input
+              type="date"
+              id="filterEndDate"
+              value={filterEndDate}
+              onChange={(e) => setFilterEndDate(e.target.value)}
+              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+              required
+            />
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">끝 날짜</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={e => setEndDate(e.target.value)}
-            className="border px-2 py-1 rounded"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="filterGrade" className="block text-sm font-medium text-gray-700">학년 (선택)</label>
+            <select
+              id="filterGrade"
+              value={filterGrade}
+              onChange={(e) => { setFilterGrade(e.target.value); setFilterClassNum(''); }} // 학년 변경 시 반 초기화
+              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+            >
+              <option value="">전체 학년</option>
+              {[1, 2, 3].map(g => <option key={g} value={String(g)}>{g}학년</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="filterClassNum" className="block text-sm font-medium text-gray-700">반 (선택)</label>
+            <select
+              id="filterClassNum"
+              value={filterClassNum}
+              onChange={(e) => setFilterClassNum(e.target.value)}
+              disabled={!filterGrade} // 학년이 선택되어야 활성화
+              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm"
+            >
+              <option value="">전체 반</option>
+              {filterGrade && [...Array(12)].map((_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}반</option>)}
+            </select>
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">학년</label>
-          <select
-            value={selectedGrade}
-            onChange={e => setSelectedGrade(e.target.value)}
-            className="border px-2 py-1 rounded"
-          >
-            {[1,2,3].map(g => (
-              <option key={g} value={String(g)}>{g}학년</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">반</label>
-          <select
-            value={selectedClass}
-            onChange={e => setSelectedClass(e.target.value)}
-            className="border px-2 py-1 rounded"
-          >
-            {[...Array(5)].map((_, i) => (
-              <option key={i+1} value={String(i+1)}>{i+1}반</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className="flex gap-2 mb-6">
         <button
-          onClick={fetchReport}
-          disabled={loading}
-          className="btn-teal px-4 py-2"
+          type="submit"
+          disabled={isLoading}
+          className="w-full sm:w-auto bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-6 rounded-md shadow disabled:bg-teal-300"
         >
-          {loading ? '조회 중...' : '통계 조회'}
+          {isLoading ? '조회 중...' : '보고서 조회'}
         </button>
-        <button
-          onClick={downloadCSV}
-          disabled={loading || reportData.length === 0}
-          className="btn-gray px-4 py-2"
-        >
-          CSV 다운로드
-        </button>
-      </div>
-      <table className="w-full table-fixed border-collapse">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="border p-2 w-1/4">이름</th>
-            <th className="border p-2">통계</th>
-          </tr>
-        </thead>
-        <tbody>
-          {reportData.length === 0 ? (
-            <tr>
-              <td colSpan={2} className="border p-2 text-center text-gray-500">
-                조회된 데이터가 없습니다.
-              </td>
-            </tr>
-          ) : reportData.map((r, i) => (
-            <tr key={i} className="odd:bg-white even:bg-gray-50">
-              <td className="border p-2 text-sm">{r.name}</td>
-              <td className="border p-2 text-sm whitespace-pre-wrap">{r.summary}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      </form>
+
+      {/* 로딩 및 오류 메시지 표시 */}
+      {isLoading && <p className="text-center text-blue-500 py-4">보고서를 생성 중입니다...</p>}
+      {error && <p className="text-center text-red-500 py-4 bg-red-50 rounded">{error}</p>}
+
+      {/* 보고서 데이터 표시 영역 */}
+      {reportData && !isLoading && !error && (
+        <div className="p-6 bg-white rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">조회 결과</h2>
+          {reportData.message ? (
+            <p className="text-gray-600">{reportData.message}</p>
+          ) : (
+            <div className="space-y-3 text-sm">
+              <p><strong>총 출결 기록 문서 수:</strong> {reportData.totalAttendanceRecords}</p>
+              <p><strong>처리된 총 학생 출결 건수:</strong> {reportData.totalStudentsProcessed}</p>
+              <div>
+                <strong>상태별 건수:</strong>
+                <ul className="list-disc list-inside ml-4 mt-1">
+                  {Object.entries(reportData.statusCounts).map(([status, count]) => (
+                    <li key={status}>{status}: {count}건</li>
+                  ))}
+                </ul>
+              </div>
+              {/* 여기에 차트나 더 상세한 통계 테이블 등을 추가할 수 있습니다. */}
+              <p className="mt-4 text-xs text-gray-500">
+                * 이 보고서는 현재 단순 집계된 결과이며, 실제 보고서 형식과는 다를 수 있습니다.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
