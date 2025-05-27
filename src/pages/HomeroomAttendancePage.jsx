@@ -21,19 +21,7 @@ import { collection, doc, getDoc, setDoc, query, where, getDocs, serverTimestamp
 export default function HomeroomAttendancePage({ userInfo }) { // userInfo를 props로 받도록 수정
   // const { currentUserInfo } = useAuth(); // AuthContext 사용 예시
   // const userInfoToUse = userInfo || currentUserInfo; // props 우선, 없으면 Context 사용
-
-  // userInfo가 없거나, 역할이 담임이 아니면 접근 제한
-  if (!userInfo || userInfo.role !== 'homeroom') {
-    return (
-      <div className="p-6 text-center text-red-600 bg-red-50 rounded-lg shadow">
-        <p className="font-semibold">접근 권한 오류</p>
-        <p>이 페이지는 담임 선생님만 접근할 수 있습니다.</p>
-        {!userInfo && <p className="text-sm text-gray-500 mt-2">로그인 정보가 없습니다.</p>}
-        {userInfo && userInfo.role !== 'homeroom' && <p className="text-sm text-gray-500 mt-2">현재 역할: {userInfo.role}</p>}
-      </div>
-    );
-  }
-  
+ 
   // 선택된 날짜를 관리하는 상태입니다. 담임교사의 학년, 반은 userInfo에서 가져옵니다.
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const homeroomGrade = userInfo.grade;
@@ -103,6 +91,18 @@ export default function HomeroomAttendancePage({ userInfo }) { // userInfo를 pr
 
     fetchStudentsAndAttendance();
   }, [selectedDate, homeroomGrade, homeroomClass]); // 의존성 배열에 homeroomGrade, homeroomClass 추가
+
+  // userInfo가 없거나, 역할이 담임이 아니면 접근 제한
+  if (!userInfo || userInfo.role !== 'homeroom') {
+    return (
+      <div className="p-6 text-center text-red-600 bg-red-50 rounded-lg shadow">
+        <p className="font-semibold">접근 권한 오류</p>
+        <p>이 페이지는 담임 선생님만 접근할 수 있습니다.</p>
+        {!userInfo && <p className="text-sm text-gray-500 mt-2">로그인 정보가 없습니다.</p>}
+        {userInfo && userInfo.role !== 'homeroom' && <p className="text-sm text-gray-500 mt-2">현재 역할: {userInfo.role}</p>}
+      </div>
+    );
+  }
 
   /**
    * 특정 학생의 출결 상태를 변경하는 핸들러 함수입니다.

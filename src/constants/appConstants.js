@@ -19,6 +19,7 @@ export const ROLES = {
   WELFARE: 'welfare',     // 복지교사
   HOMEROOM: 'homeroom',   // 담임교사
   SUBJECT: 'subject',     // 교과교사
+  GATE_KEEPER: 'gatekeeper', // "정문관리자" 역할 추가
   // 필요에 따라 다른 역할 추가 가능 (예: ADMIN: 'admin' - 관리자)
 };
 
@@ -51,4 +52,18 @@ export const PATHS = {
   // --- 인증 관련 경로 (App.jsx에서 주로 처리) ---
   // LOGIN: '/login', // 로그인 페이지 (현재 GoogleLogin 컴포넌트가 직접 렌더링됨)
   // ROLE_REGISTER: '/register', // 역할 등록 페이지 (현재 RoleRegisterForm 컴포넌트가 직접 렌더링됨)
+};
+
+/**
+ * @constant ROLE_NAMES
+ * @description 사용자 역할 코드에 대한 한글 표시 이름을 정의하는 상수 객체입니다.
+ * UI에 역할을 표시할 때 사용됩니다.
+ */
+export const ROLE_NAMES = {
+  [ROLES.NURSE]: '보건교사',
+  [ROLES.COUNSELOR]: '상담교사',
+  [ROLES.WELFARE]: '복지교사',
+  [ROLES.HOMEROOM]: '담임교사',
+  [ROLES.SUBJECT]: '교과교사',
+  [ROLES.GATE_KEEPER]: '정문관리자', // "정문관리자" 한글 이름 추가
 };

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase/firebaseConfig'; // Firebase Firestore 인스턴스 임포트
-import { collection, doc, getDoc, setDoc, query, where, getDocs, writeBatch } from 'firebase/firestore'; // Firestore 함수 임포트
+import { collection, doc, getDoc, setDoc, query, where, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore'; // Firestore 함수 임포트
 
 /**
  * @file AttendancePage.jsx

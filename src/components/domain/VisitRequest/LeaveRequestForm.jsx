@@ -19,15 +19,6 @@ import { ROLES } from '../../../constants/appConstants'; // 역할 상수 임포
  * @returns {JSX.Element} 조퇴/외출 기록 폼 UI
  */
 export default function LeaveRequestForm({ userInfo }) {
-  // 현재 로그인한 사용자가 담임교사(ROLES.HOMEROOM)가 아니면, 이 폼을 사용할 수 없음을 알립니다.
-  if (userInfo.role !== ROLES.HOMEROOM) {
-    return (
-      <div className="p-4 text-center text-red-500">
-        이 기능은 담임교사만 사용할 수 있습니다.
-      </div>
-    );
-  }
-
   // 폼 입력 값을 관리하는 상태입니다.
   const [form, setForm] = useState({
     // 담임교사의 학년, 반 정보는 userInfo에서 가져와 고정합니다.
@@ -87,6 +78,14 @@ export default function LeaveRequestForm({ userInfo }) {
     // 대신, 드롭다운에 filteredStudents를 사용합니다. (아래 JSX 수정 필요)
   }, [studentNameInput, studentList]);
 
+  // 현재 로그인한 사용자가 담임교사(ROLES.HOMEROOM)가 아니면, 이 폼을 사용할 수 없음을 알립니다.
+  if (userInfo.role !== ROLES.HOMEROOM) {
+    return (
+      <div className="p-4 text-center text-red-500">
+        이 기능은 담임교사만 사용할 수 있습니다.
+      </div>
+    );
+  }
 
   /**
    * 폼 입력 요소의 변경 이벤트를 처리하는 핸들러 함수입니다.
