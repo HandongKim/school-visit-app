@@ -1,10 +1,6 @@
 {
   "compilerOptions": {
-<<<<<<< HEAD
-    "baseUrl": "src/" 
-=======
-    "baseUrl": "src/"
->>>>>>> origin/work
+  "baseUrl": "src/"
   },
   "include": ["src"]
 }
