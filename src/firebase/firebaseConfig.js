@@ -6,15 +6,28 @@ import { getAuth, GoogleAuthProvider, setPersistence, browserLocalPersistence } 
 // Firestore (DB) 서비스
 import { getFirestore } from 'firebase/firestore';
 
-// Firebase 프로젝트 설정 (Firebase console에서 발급된 값)
+// Firebase 프로젝트 설정은 환경 변수에서 로드됩니다.
+// 테스트 환경의 경우 `.env.test` 파일을 사용하여 값을 지정할 수 있습니다.
 const firebaseConfig = {
-  apiKey: 'AIzaSyAjhuEp6jqLdeS7-arTf2IrW6w6rnFjJJs',
-  authDomain: 'school-visit-fdb03.web.app',
-  projectId: 'school-visit-fdb03',
-  storageBucket: 'school-visit-fdb03.firebasestorage.app',
-  messagingSenderId: '57920252837',
-  appId: '1:57920252837:web:ee97a39eb08da01d30d64c',
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
 };
+
+// 모든 환경 변수가 존재하는지 확인하여 누락 시 명확한 오류를 발생시킵니다.
+const missingKeys = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => key);
+
+if (missingKeys.length > 0) {
+  const msg = `Firebase 설정 누락: ${missingKeys.join(', ')}`;
+  // 콘솔에 메시지를 남기고 예외를 던져 앱 초기화 자체를 막습니다.
+  console.error(msg);
+  throw new Error(msg);
+}
 
 // Firebase 앱 초기화
 const app = initializeApp(firebaseConfig);
