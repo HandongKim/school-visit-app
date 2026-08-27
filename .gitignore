@@ -28,3 +28,6 @@ build/
 firebase-debug.log
 functions/node_modules/
 
+
+# Firebase CLI local deploy cache
+.firebase/
