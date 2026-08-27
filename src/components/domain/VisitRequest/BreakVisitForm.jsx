@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase/firebaseConfig';
 import { collection, addDoc, getDocs, query } from 'firebase/firestore';
+import ReasonPresetChips from '../../ui/ReasonPresetChips';
+import { toLocalDatetimeString } from '../../../utils/dateFormat';
 
 export default function BreakVisitForm({ userInfo }) {
   const role = userInfo?.role;
@@ -20,7 +22,7 @@ export default function BreakVisitForm({ userInfo }) {
     name: '',
     type: defaultType,
     reason: '',
-    departureTime: new Date().toISOString().slice(0,16),
+    departureTime: toLocalDatetimeString(),
   });
 
   useEffect(() => {
@@ -43,8 +45,12 @@ export default function BreakVisitForm({ userInfo }) {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async e => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     const payload = {
       grade: form.grade,
       class: form.class,
@@ -65,11 +71,13 @@ export default function BreakVisitForm({ userInfo }) {
         ...f,
         name: '',
         reason: '',
-        departureTime: new Date().toISOString().slice(0,16),
+        departureTime: toLocalDatetimeString(),
       }));
     } catch (err) {
       console.error(err);
       alert('❌ 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -147,6 +155,11 @@ export default function BreakVisitForm({ userInfo }) {
             className="border p-2 w-full rounded text-sm"
             required
           />
+          <ReasonPresetChips
+            type={form.type}
+            value={form.reason}
+            onSelect={reason => setForm(f => ({ ...f, reason }))}
+          />
           <input
             name="reason"
             value={form.reason}
@@ -155,8 +168,12 @@ export default function BreakVisitForm({ userInfo }) {
             className="border p-2 w-full rounded text-sm"
             required
           />
-          <button type="submit" className="bg-blue-500 hover:bg-blue-600 text-white w-full py-2 rounded text-sm">
-            기록하기
+          <button
+            type="submit"
+            disabled={submitting}
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white w-full py-2 rounded text-sm"
+          >
+            {submitting ? '저장 중...' : '기록하기'}
           </button>
         </form>
       </div>

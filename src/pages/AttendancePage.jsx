@@ -14,6 +14,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
+import { toLocalDateString } from '../utils/dateFormat';
 
 // 출결 상태 및 사유 옵션
 const attendanceOptions = ['출석', '결석', '지각', '조퇴', '결과'];
@@ -31,7 +32,7 @@ export default function AttendancePage() {
   }, []);
 
   // 필터 state
-  const [selectedDate, setSelectedDate]     = useState(() => new Date().toISOString().slice(0,10));
+  const [selectedDate, setSelectedDate]     = useState(() => toLocalDateString());
   const [selectedGrade, setSelectedGrade]   = useState('1');
   const [selectedClass, setSelectedClass]   = useState('1');
   const [selectedPeriod, setSelectedPeriod] = useState('조회');

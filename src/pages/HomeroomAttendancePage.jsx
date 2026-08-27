@@ -5,6 +5,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { db } from '../firebase/firebaseConfig';
 // Firestore 함수들
 import { collection, getDocs, doc, setDoc } from 'firebase/firestore';
+import { toLocalDateString } from '../utils/dateFormat';
 
 // 출결 상태 및 사유 옵션
 const attendanceOptions = ['출석', '결석', '지각', '조퇴', '결과'];
@@ -13,7 +14,7 @@ const reasonOptions     = ['인정', '질병', '기타', '미인정'];
 export default function HomeroomAttendancePage() {
   // -- 필터 상태 관리 ----------------------------------------
   const [selectedDate, setSelectedDate]     = useState(
-    () => new Date().toISOString().split('T')[0]
+    () => toLocalDateString()
   ); // 기본값: 오늘 날짜 (YYYY-MM-DD)
   const [selectedPeriod, setSelectedPeriod] = useState('조회'); // 조회 모드 기본값
   const [selectedGrade, setSelectedGrade]   = useState('1');    // 1~3학년

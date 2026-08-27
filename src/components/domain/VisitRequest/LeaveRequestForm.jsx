@@ -26,9 +26,13 @@ export default function LeaveRequestForm({ userInfo }) {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   // -- 폼 제출 핸들러 ----------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     const time = `${form.hour}:${form.minute}`; // "HH:MM" 형식
 
     try {
@@ -54,6 +58,8 @@ export default function LeaveRequestForm({ userInfo }) {
     } catch (error) {
       console.error('저장 실패:', error);
       alert('❌ 기록 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -157,9 +163,10 @@ export default function LeaveRequestForm({ userInfo }) {
         {/* 제출 버튼 */}
         <button
           type="submit"
-          className="bg-blue-500 text-white text-sm px-4 py-2 rounded hover:bg-blue-600 w-full"
+          disabled={submitting}
+          className="bg-blue-500 disabled:bg-blue-300 text-white text-sm px-4 py-2 rounded hover:bg-blue-600 w-full"
         >
-          기록 저장
+          {submitting ? '저장 중...' : '기록 저장'}
         </button>
       </form>
     </div>

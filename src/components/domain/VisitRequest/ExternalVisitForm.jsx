@@ -13,6 +13,7 @@ export default function ExternalVisitForm() {
   const [minute, setMinute]   = useState('');  // 분 (00,10,...,50)
   const [reason, setReason]   = useState('');  // 방문 사유
   const [message, setMessage] = useState('');  // 성공/오류 메시지
+  const [submitting, setSubmitting] = useState(false);
 
   // -- 폼 제출 핸들러 --------------------------------------
   const handleSubmit = async () => {
@@ -21,6 +22,8 @@ export default function ExternalVisitForm() {
       setMessage('모든 항목을 입력해주세요.');
       return;
     }
+    if (submitting) return;
+    setSubmitting(true);
 
     // 시·분을 합쳐 "HH:MM" 형식 문자열 생성
     const time = `${hour}:${minute}`;
@@ -45,6 +48,8 @@ export default function ExternalVisitForm() {
     } catch (error) {
       console.error('저장 중 오류:', error);
       setMessage('❌ 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -104,9 +109,10 @@ export default function ExternalVisitForm() {
       {/* 저장 버튼 */}
       <button
         onClick={handleSubmit}
-        className="w-full bg-gray-700 text-white py-2 rounded hover:bg-gray-800 font-semibold"
+        disabled={submitting}
+        className="w-full bg-gray-700 disabled:bg-gray-400 text-white py-2 rounded hover:bg-gray-800 font-semibold"
       >
-        저장
+        {submitting ? '저장 중...' : '저장'}
       </button>
 
       {/* 성공/오류 메시지 표시 */}

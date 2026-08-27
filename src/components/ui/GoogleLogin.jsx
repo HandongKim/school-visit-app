@@ -12,19 +12,30 @@ export default function GoogleLogin() {
   const isInStandalone =
     window.navigator.standalone === true ||
     window.matchMedia('(display-mode: standalone)').matches;
+  // localhost 개발 환경은 앱 origin과 Firebase authDomain이 달라
+  // signInWithRedirect의 상태 복원이 브라우저 서드파티 저장소 정책에 막히는 경우가 많음 → 팝업 사용
+  const isLocalDev = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   const handleLogin = async () => {
     try {
-      console.log('🔄 로그인 시작', { isIos, isInStandalone });
+      console.log('🔄 로그인 시작', { isIos, isInStandalone, isLocalDev });
       if (isIos && isInStandalone) {
         // PWA 모드: 팝업 로그인 시도
         await signInWithPopup(auth, provider);
+      } else if (isLocalDev) {
+        // 로컬 개발 환경: 팝업 로그인 (redirect는 localhost에서 깨지기 쉬움)
+        await signInWithPopup(auth, provider);
       } else {
-        // 그 외: 리디렉트 로그인
+        // 그 외(운영 환경): 리디렉트 로그인
         await signInWithRedirect(auth, provider);
       }
     } catch (err) {
       console.error('Google 로그인 실패:', err);
+      if (isLocalDev) {
+        // 로컬에서는 redirect로 폴백해봤자 같은 문제가 재현되므로 폴백하지 않고 바로 알림
+        alert(`로그인 실패: ${err.code || err.message}\n브라우저 콘솔(F12)의 에러 내용을 확인해주세요.`);
+        return;
+      }
       // 팝업이 막혔거나 에러나면 리디렉트로 폴백
       await signInWithRedirect(auth, provider);
     }

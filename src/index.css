@@ -3,43 +3,53 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 공통 버튼 베이스 */
+.btn-teal, .btn-indigo, .btn-amber, .btn-violet,
+.btn-slate, .btn-rose, .btn-blue, .btn-red, .btn-gray {
+  @apply font-semibold px-6 py-3 rounded-xl shadow-md w-60 transition-colors;
+}
+
+/* 방문/휴게 신청 (보건·상담·복지 교사) */
 .btn-teal {
-    @apply bg-teal-200 hover:bg-teal-300 text-teal-800
-           font-semibold px-6 py-3 rounded-xl shadow-md
-           w-60 transition-colors;
+  @apply bg-teal-200 hover:bg-teal-300 text-teal-800;
 }
+
+/* 승인 · 승인 현황 (담임·교과 교사) */
 .btn-indigo {
-@apply bg-indigo-200 hover:bg-indigo-300 text-indigo-800
-        font-semibold px-6 py-3 rounded-xl shadow-md
-        w-60 transition-colors;
-}
-.btn-yellow {
-@apply bg-yellow-200 hover:bg-yellow-300 text-yellow-800
-        font-semibold px-6 py-3 rounded-xl shadow-md
-        w-60 transition-colors;
+  @apply bg-indigo-200 hover:bg-indigo-300 text-indigo-800;
 }
 
-.btn-gray {
-@apply bg-gray-200 hover:bg-gray-300 text-gray-800
-        font-semibold px-6 py-3 rounded-xl shadow-md
-        w-60 transition-colors;
+/* 기록 입력 (조퇴/외출 기록, 외부인 방문 기록) */
+.btn-amber {
+  @apply bg-amber-200 hover:bg-amber-300 text-amber-800;
 }
 
-.btn-dark {
-@apply bg-gray-300 hover:bg-gray-400 text-gray-900
-        font-semibold px-6 py-3 rounded-xl shadow-md
-        w-60 transition-colors;
+/* 학생 명단 관리 (학생 관리, 학생 명렬표 업로드) */
+.btn-violet {
+  @apply bg-violet-200 hover:bg-violet-300 text-violet-800;
 }
 
+/* 현황 조회 (외부인/조퇴 현황 등 읽기 전용) */
+.btn-slate {
+  @apply bg-slate-200 hover:bg-slate-300 text-slate-800;
+}
+
+/* 관리자 전용 민감 기능 (시스템 관리) */
+.btn-rose {
+  @apply bg-rose-200 hover:bg-rose-300 text-rose-800;
+}
+
+/* 개인 설정 */
 .btn-blue {
-@apply bg-blue-200 hover:bg-blue-300 text-blue-800
-        font-semibold px-6 py-3 rounded-xl shadow-md
-        w-60 transition-colors;
+  @apply bg-blue-200 hover:bg-blue-300 text-blue-800;
 }
 
+/* 로그아웃 */
 .btn-red {
-@apply bg-red-200 hover:bg-red-300 text-red-800
-        font-semibold px-6 py-3 rounded-xl shadow-md
-        w-60 transition-colors;
+  @apply bg-red-200 hover:bg-red-300 text-red-800;
 }
-  
+
+/* 보조 액션 (예: CSV 다운로드) */
+.btn-gray {
+  @apply bg-gray-200 hover:bg-gray-300 text-gray-800;
+}
