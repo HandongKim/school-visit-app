@@ -29,6 +29,7 @@ import AdminStudentUpload      from './pages/AdminStudentUpload';
 import AttendanceReportPage    from './pages/AttendanceReportPage';
 import AdminSettingsPage       from './pages/AdminSettingsPage';
 import AddStudentForm          from './pages/AddStudentForm';
+import TeacherManagementPage   from './pages/TeacherManagementPage';
 
 function AppContent({ userInfo, setUserInfo, adminMeta, setAdminMeta, firebaseUser }) {
   const [page, setPage] = useState('menu');
@@ -77,6 +78,7 @@ function AppContent({ userInfo, setUserInfo, adminMeta, setAdminMeta, firebaseUs
           {isAdmin && (
             <>
               <button onClick={() => setPage('admin-upload')}   className="btn-violet">학생 명렬표 업로드</button>
+              <button onClick={() => setPage('teachers')}       className="btn-violet">교사 관리</button>
               <button onClick={() => setPage('admin-settings')} className="btn-rose">시스템 관리</button>
             </>
           )}
@@ -119,6 +121,7 @@ function AppContent({ userInfo, setUserInfo, adminMeta, setAdminMeta, firebaseUs
         {page === 'admin'    && <AdminVisitorView /> }
         {page === 'add-student'    && <AddStudentForm userInfo={userInfo} />}
         {page === 'admin-upload'   && <AdminStudentUpload />}
+        {page === 'teachers'       && <TeacherManagementPage currentUid={firebaseUser.uid} />}
         {page === 'admin-settings' && (
           <AdminSettingsPage adminMeta={adminMeta} onAdminTransferred={setAdminMeta} />
         )}
