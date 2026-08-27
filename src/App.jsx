@@ -9,6 +9,8 @@ import {
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase/firebaseConfig';
+import { loadOrBootstrapAdmin } from './firebase/adminService';
+import { usePendingApprovalCount } from './hooks/usePendingApprovalCount';
 
 import GoogleLogin      from './components/ui/GoogleLogin';
 import RoleRegisterForm from './components/ui/RoleRegisterForm';
@@ -25,10 +27,16 @@ import AttendancePage          from './pages/AttendancePage';
 import HomeroomAttendancePage  from './pages/HomeroomAttendancePage';
 import AdminStudentUpload      from './pages/AdminStudentUpload';
 import AttendanceReportPage    from './pages/AttendanceReportPage';
+import AdminSettingsPage       from './pages/AdminSettingsPage';
+import AddStudentForm          from './pages/AddStudentForm';
 
-function AppContent({ userInfo }) {
+function AppContent({ userInfo, setUserInfo, adminMeta, setAdminMeta, firebaseUser }) {
   const [page, setPage] = useState('menu');
+  const [approvalTab, setApprovalTab] = useState('approve');
   const role = userInfo.role;
+  const isAdmin = !!adminMeta && adminMeta.uid === firebaseUser.uid;
+  const pendingCount = usePendingApprovalCount(role, userInfo);
+  const goToApproval = tab => { setApprovalTab(tab); setPage('approval'); };
 
   if (page === 'menu') {
     return (
@@ -44,23 +52,34 @@ function AppContent({ userInfo }) {
             <>
               <button onClick={() => setPage('home')}   className="btn-teal">방문 신청</button>
               <button onClick={() => setPage('break')}  className="btn-teal">쉬는 시간 방문</button>
-              <button onClick={() => setPage('status')} className="btn-teal">요청 내역</button>
+              <button onClick={() => goToApproval('status')} className="btn-teal">요청 내역</button>
             </>
           )}
           {(role === 'homeroom' || role === 'subject') && (
             <>
-              <button onClick={() => setPage('approve')} className="btn-indigo">요청 승인</button>
-              <button onClick={() => setPage('status')}  className="btn-indigo">승인 현황</button>
+              <button onClick={() => goToApproval('approve')} className="btn-indigo">
+                요청 승인{pendingCount > 0 ? ` (${role === 'homeroom' ? pendingCount : `전체 ${pendingCount}`})` : ''}
+              </button>
+              <button onClick={() => goToApproval('status')}  className="btn-indigo">승인 현황</button>
             </>
           )}
           {role === 'homeroom' && (
-            <button onClick={() => setPage('leave')} className="btn-yellow">조퇴/외출 기록</button>
+            <button onClick={() => setPage('leave')} className="btn-amber">조퇴/외출 기록</button>
+          )}
+          {role === 'homeroom' && (
+            <button onClick={() => setPage('add-student')} className="btn-violet">학생 관리</button>
           )}
           {(role === 'subject' || role === 'homeroom') && (
-            <button onClick={() => setPage('external')} className="btn-gray">외부인 방문 기록</button>
+            <button onClick={() => setPage('external')} className="btn-amber">외부인 방문 기록</button>
           )}
           {/* 공통: 외부인/조퇴 현황, 설정, 로그아웃 */}
-          <button onClick={() => setPage('admin')}    className="btn-dark">외부인 / 조퇴 현황</button>
+          <button onClick={() => setPage('admin')}    className="btn-slate">외부인 / 조퇴 현황</button>
+          {isAdmin && (
+            <>
+              <button onClick={() => setPage('admin-upload')}   className="btn-violet">학생 명렬표 업로드</button>
+              <button onClick={() => setPage('admin-settings')} className="btn-rose">시스템 관리</button>
+            </>
+          )}
           <button onClick={() => setPage('settings')} className="btn-blue">설정</button>
           <button
             onClick={() => {
@@ -92,15 +111,23 @@ function AppContent({ userInfo }) {
       <main>
         {page === 'home'     && <VisitRequestForm   userInfo={userInfo} />}
         {page === 'break'    && <BreakVisitForm     userInfo={userInfo} />}
-        {page === 'approve'  && <ApprovalScreen     role={role} mode="approve" userInfo={userInfo} />}
+        {page === 'approval' && (
+          <ApprovalScreen role={role} userInfo={userInfo} initialTab={approvalTab} />
+        )}
         {page === 'leave'    && <LeaveRequestForm   userInfo={userInfo} />}
         {page === 'external' && <ExternalVisitForm  userInfo={userInfo} />}
         {page === 'admin'    && <AdminVisitorView /> }
+        {page === 'add-student'    && <AddStudentForm userInfo={userInfo} />}
+        {page === 'admin-upload'   && <AdminStudentUpload />}
+        {page === 'admin-settings' && (
+          <AdminSettingsPage adminMeta={adminMeta} onAdminTransferred={setAdminMeta} />
+        )}
         {page === 'settings' && (
           <SettingsPage
             user={auth.currentUser}
             onUpdate={updated => {
-              /* userInfo 업데이트 콜백 */
+              setUserInfo(prev => ({ ...prev, ...updated }));
+              setPage('menu');
             }}
           />
         )}
@@ -113,6 +140,7 @@ export default function App() {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [userInfo, setUserInfo]         = useState(null);
+  const [adminMeta, setAdminMeta]       = useState(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, user => {
@@ -130,6 +158,17 @@ export default function App() {
     (async () => {
       const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
       setUserInfo(snap.exists() ? snap.data() : null);
+    })();
+  }, [firebaseUser]);
+
+  useEffect(() => {
+    if (!firebaseUser) {
+      setAdminMeta(null);
+      return;
+    }
+    (async () => {
+      const meta = await loadOrBootstrapAdmin(firebaseUser);
+      setAdminMeta(meta);
     })();
   }, [firebaseUser]);
 
@@ -155,7 +194,18 @@ export default function App() {
         <Route path="/homeroom-attendance" element={<HomeroomAttendancePage />} />
 
         {/* 이외 경로는 AppContent가 처리 */}
-        <Route path="/*" element={<AppContent userInfo={userInfo} />} />
+        <Route
+          path="/*"
+          element={
+            <AppContent
+              userInfo={userInfo}
+              setUserInfo={setUserInfo}
+              adminMeta={adminMeta}
+              setAdminMeta={setAdminMeta}
+              firebaseUser={firebaseUser}
+            />
+          }
+        />
       </Routes>
     </Router>
   );

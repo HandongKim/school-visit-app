@@ -3,6 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../../firebase/firebaseConfig';
 import { collection, addDoc, getDocs, query } from 'firebase/firestore';
+import { getCurrentPeriod } from '../../../utils/periods';
+import ReasonPresetChips from '../../ui/ReasonPresetChips';
+
+// 이 폼의 "시간" 선택지에는 '조회'가 없으므로, 조회 시간대엔 1교시를 기본값으로 사용
+function getInitialPeriod() {
+  const p = getCurrentPeriod();
+  return p === '조회' ? '1교시' : p;
+}
 
 export default function VisitRequestForm({ userInfo }) {
   const role = userInfo?.role;
@@ -23,9 +31,7 @@ export default function VisitRequestForm({ userInfo }) {
     name:     '',
     type:     '',            // ▶ 초기에는 빈 문자열로 두고
     reason:   '',
-    time:     '1교시',
-    breakVisit:      false,
-    departureTime:  '',
+    time:     getInitialPeriod(),
   });
 
   // userInfo.role 이 들어오면 type 을 기본값으로 설정
@@ -60,17 +66,21 @@ export default function VisitRequestForm({ userInfo }) {
     }));
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSubmit = async e => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     const payload = {
       grade:        form.grade,
       class:        form.class,
       name:         form.name,
       type:         form.type,
       reason:       form.reason,
-      time:         form.breakVisit ? null : form.time,
-      breakVisit:   form.breakVisit,
-      departureTime: form.breakVisit ? new Date(form.departureTime) : null,
+      time:         form.time,
+      breakVisit:   false,
+      departureTime: null,
       status:       { homeroom:'대기', subject:'대기' },
       confirmed:    false,
       createdAt:    new Date(),
@@ -82,14 +92,14 @@ export default function VisitRequestForm({ userInfo }) {
         ...f,
         name:         '',
         reason:       '',
-        time:         '1교시',
-        breakVisit:   false,
-        departureTime:''
+        time:         getInitialPeriod(),
         // grade/class/type 유지
       }));
     } catch (err) {
       console.error(err);
       alert('❌ 신청 저장 중 오류가 발생했습니다.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -172,42 +182,27 @@ export default function VisitRequestForm({ userInfo }) {
             <option value="복지실">복지실</option>
           </select>
 
-          {/* 쉬는 시간 방문 여부 */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              name="breakVisit"
-              checked={form.breakVisit}
-              onChange={handleChange}
-              id="breakVisit"
-            />
-            <label htmlFor="breakVisit">쉬는 시간 방문</label>
-          </div>
-
-          {/* 시간 or 출발 시각 */}
-          {form.breakVisit ? (
-            <input
-              type="datetime-local"
-              name="departureTime"
-              value={form.departureTime}
-              onChange={handleChange}
-              className="border p-2 w-full rounded text-sm"
-              required
-            />
-          ) : (
-            <select
-              name="time"
-              value={form.time}
-              onChange={handleChange}
-              className="border p-2 w-full rounded text-sm"
-            >
-              {['1교시','2교시','3교시','4교시','5교시','6교시','7교시'].map(p=>(
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          )}
+          {/* 시간 */}
+          <select
+            name="time"
+            value={form.time}
+            onChange={handleChange}
+            className="border p-2 w-full rounded text-sm"
+          >
+            {['1교시','2교시','3교시','4교시','5교시','6교시','7교시'].map(p=>(
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 -mt-2">
+            쉬는 시간에 방문한 학생을 기록하는 경우 메뉴의 "쉬는 시간 방문"을 이용해주세요 (승인 없이 바로 기록됩니다).
+          </p>
 
           {/* 사유 */}
+          <ReasonPresetChips
+            type={form.type}
+            value={form.reason}
+            onSelect={reason => setForm(f => ({ ...f, reason }))}
+          />
           <input
             name="reason"
             value={form.reason}
@@ -220,9 +215,10 @@ export default function VisitRequestForm({ userInfo }) {
           {/* 제출 */}
           <button
             type="submit"
-            className="bg-blue-500 hover:bg-blue-600 text-white w-full py-2 rounded text-sm"
+            disabled={submitting}
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white w-full py-2 rounded text-sm"
           >
-            신청하기
+            {submitting ? '저장 중...' : '신청하기'}
           </button>
         </form>
       </div>

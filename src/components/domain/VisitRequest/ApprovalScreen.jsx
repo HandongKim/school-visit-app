@@ -5,30 +5,34 @@ import { db } from '../../../firebase/firebaseConfig';
 import {
   collection,
   query,
-  getDocs,
+  onSnapshot,
   updateDoc,
   deleteDoc,
   doc,
   where,
   Timestamp,
 } from 'firebase/firestore';
+import { isPendingHomeroom, isPendingSubject } from '../../../utils/visitFilters';
 
-export default function ApprovalScreen({ role, mode, userInfo }) {
+export default function ApprovalScreen({ role, userInfo, initialTab = 'approve' }) {
+  const canApprove = role === 'homeroom' || role === 'subject';
+  const [tab, setTab] = useState(canApprove ? initialTab : 'status');
   const [requests, setRequests]       = useState([]);
   const [withSubject, setWithSubject] = useState(false);
 
+  // 오늘 날짜 방문 요청을 실시간 구독 (새 요청/승인 변경이 새로고침 없이 반영됨)
   useEffect(() => {
-    (async () => {
-      const start = new Date(); start.setHours(0,0,0,0);
-      const end   = new Date(); end.setHours(23,59,59,999);
-      const q = query(
-        collection(db, 'visits'),
-        where('createdAt','>=',Timestamp.fromDate(start)),
-        where('createdAt','<=',Timestamp.fromDate(end))
-      );
-      const snap = await getDocs(q);
-      setRequests(snap.docs.map(d=>({id:d.id,...d.data()})));
-    })();
+    const start = new Date(); start.setHours(0,0,0,0);
+    const end   = new Date(); end.setHours(23,59,59,999);
+    const q = query(
+      collection(db, 'visits'),
+      where('createdAt','>=',Timestamp.fromDate(start)),
+      where('createdAt','<=',Timestamp.fromDate(end))
+    );
+    const unsubscribe = onSnapshot(q, snap => {
+      setRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return unsubscribe;
   }, []);
 
   const handleApproval = async (id, type) => {
@@ -43,11 +47,12 @@ export default function ApprovalScreen({ role, mode, userInfo }) {
       updateFields['timestamp.subject']=now;
     }
     await updateDoc(ref, updateFields);
+    // onSnapshot이 곧 최신 상태로 갱신해주지만, 클릭 반응성을 위해 낙관적으로도 반영
     setRequests(r =>
       r.map(item =>
         item.id===id
           ? { ...item,
-              status: { 
+              status: {
                 ...item.status,
                 [role]:type==='approve'?'승인':'거절',
                 ...(role==='homeroom'&&type==='approve'&&withSubject?{subject:'승인'}:{})
@@ -66,30 +71,33 @@ export default function ApprovalScreen({ role, mode, userInfo }) {
   const handleDelete = async id => {
     if (!window.confirm('정말 삭제하시겠습니까?')) return;
     await deleteDoc(doc(db,'visits',id));
-    setRequests(r => r.filter(item=>item.id!==id));
   };
 
-  // 승인 현황 리스트 필터링 (breakVisit 제외)
-  const filtered = requests.filter(item => {
+  // 승인 대기 목록 (approve 탭, breakVisit 제외) — 공용 판정 함수 사용
+  const approveList = requests.filter(item => {
     if (item.breakVisit) return false;
-    const { homeroom, subject } = item.status||{};
-    const gMatch = String(item.grade)===String(userInfo.grade);
-    const cMatch = String(item.class)===String(userInfo.class);
-    const hOk = homeroom==='승인';
-    const sOk = subject==='승인';
-    const both = hOk&&sOk;
-
-    if (mode==='approve') {
-      if (role==='homeroom') return !hOk&&!both&&gMatch&&cMatch;
-      if (role==='subject')  return !sOk&&!both;
-    }
-    if (mode==='status') {
-      if (role==='homeroom') return (hOk&&!sOk&&gMatch&&cMatch)||both;
-      if (role==='subject')  return both;
-      if (['nurse','counselor','welfare'].includes(role)) return true;
-    }
+    if (role === 'homeroom') return isPendingHomeroom(item, userInfo);
+    if (role === 'subject')  return isPendingSubject(item);
     return false;
   });
+
+  // 현황/내역 목록 (status 탭, breakVisit 제외)
+  const statusList = requests.filter(item => {
+    if (item.breakVisit) return false;
+    const { homeroom, subject } = item.status || {};
+    const gMatch = String(item.grade) === String(userInfo?.grade);
+    const cMatch = String(item.class) === String(userInfo?.class);
+    const hOk = homeroom === '승인';
+    const sOk = subject === '승인';
+    const both = hOk && sOk;
+
+    if (role === 'homeroom') return (hOk && !sOk && gMatch && cMatch) || both;
+    if (role === 'subject')  return both;
+    if (['nurse','counselor','welfare'].includes(role)) return true;
+    return false;
+  });
+
+  const filtered = tab === 'approve' ? approveList : statusList;
 
   // 시간 순 정렬 맵
   const periodOrder = { '조회':0,'1교시':1,'2교시':2,'3교시':3,'4교시':4,'5교시':5,'6교시':6,'7교시':7 };
@@ -97,7 +105,7 @@ export default function ApprovalScreen({ role, mode, userInfo }) {
     (periodOrder[a.time]||0)-(periodOrder[b.time]||0)
   );
 
-  // 쉬는시간 방문만 따로 추출·정렬
+  // 쉬는시간 방문만 따로 추출·정렬 (status 탭에서만 표시)
   const breakVisits = requests.filter(item=>item.breakVisit);
   const sortedBreak = [...breakVisits].sort((a,b)=>{
     const ta = a.departureTime?.seconds*1000||0;
@@ -120,7 +128,7 @@ export default function ApprovalScreen({ role, mode, userInfo }) {
           사유: {item.reason}<br/>
           유형: {item.type}
         </div>
-        {mode==='approve' ? (
+        {tab==='approve' ? (
           <div className="flex gap-2">
             <button onClick={()=>handleApproval(item.id,'approve')}
               className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded">
@@ -173,10 +181,32 @@ export default function ApprovalScreen({ role, mode, userInfo }) {
   return (
     <div className="max-w-xl mx-auto p-4">
       <h2 className="text-xl font-bold mb-4 text-center">
-        {mode==='approve' ? '요청 승인' : '요청 내역'}
+        {canApprove ? '요청 승인 / 승인 현황' : '요청 내역'}
       </h2>
 
-      {mode==='approve' && role==='homeroom' && (
+      {/* 담임/교과만 탭으로 승인·현황 전환 */}
+      {canApprove && (
+        <div className="flex justify-center gap-2 mb-4">
+          <button
+            onClick={() => setTab('approve')}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+              tab==='approve' ? 'bg-indigo-500 text-white' : 'bg-indigo-100 text-indigo-700'
+            }`}
+          >
+            요청 승인{approveList.length > 0 ? ` (${approveList.length})` : ''}
+          </button>
+          <button
+            onClick={() => setTab('status')}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+              tab==='status' ? 'bg-indigo-500 text-white' : 'bg-indigo-100 text-indigo-700'
+            }`}
+          >
+            승인 현황
+          </button>
+        </div>
+      )}
+
+      {tab==='approve' && role==='homeroom' && (
         <div className="mb-4 flex items-center gap-2 text-base text-gray-700">
           <input type="checkbox" checked={withSubject}
             onChange={()=>setWithSubject(!withSubject)}
@@ -196,8 +226,8 @@ export default function ApprovalScreen({ role, mode, userInfo }) {
         </ul>
       )}
 
-      {/* 쉬는 시간 방문 현황 (status 모드에서만) */}
-      {mode==='status' && sortedBreak.length>0 && (
+      {/* 쉬는 시간 방문 현황 (status 탭에서만) */}
+      {tab==='status' && sortedBreak.length>0 && (
         <div className="mt-8">
           <h3 className="text-lg font-semibold mb-4 text-center">
             쉬는 시간 방문 현황

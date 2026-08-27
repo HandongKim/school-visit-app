@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { db } from '../firebase/firebaseConfig';
 import { collection, getDocs } from 'firebase/firestore';
+import { toLocalDateString } from '../utils/dateFormat';
 
 // 교시 목록
 const periods = ['조회','1교시','2교시','3교시','4교시','5교시','6교시','7교시'];
@@ -15,15 +16,15 @@ function getDateRange(start, end) {
   const curr = new Date(start);
   const last = new Date(end);
   while (curr <= last) {
-    dates.push(curr.toISOString().slice(0,10));
+    dates.push(toLocalDateString(curr));
     curr.setDate(curr.getDate() + 1);
   }
   return dates;
 }
 
 export default function AttendanceReportPage() {
-  const [startDate, setStartDate]     = useState(() => { const d = new Date(); d.setDate(d.getDate()-6); return d.toISOString().slice(0,10); });
-  const [endDate, setEndDate]         = useState(() => new Date().toISOString().slice(0,10));
+  const [startDate, setStartDate]     = useState(() => { const d = new Date(); d.setDate(d.getDate()-6); return toLocalDateString(d); });
+  const [endDate, setEndDate]         = useState(() => toLocalDateString());
   const [selectedGrade, setSelectedGrade] = useState('1');
   const [selectedClass, setSelectedClass] = useState('1');
   const [reportData, setReportData]   = useState([]);
