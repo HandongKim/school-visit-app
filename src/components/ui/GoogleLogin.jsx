@@ -31,6 +31,10 @@ export default function GoogleLogin() {
       }
     } catch (err) {
       console.error('Google 로그인 실패:', err);
+      // 팝업을 닫고 다시 누르는 등, 이전 시도가 새 시도에 의해 취소되는 건 정상적인 부작용이라
+      // 굳이 알림으로 방해하지 않음 (사용자가 다시 누른 시도는 별도로 정상 진행됨)
+      const isBenignCancel = ['auth/cancelled-popup-request', 'auth/popup-closed-by-user'].includes(err.code);
+      if (isBenignCancel) return;
       if (isLocalDev) {
         // 로컬에서는 redirect로 폴백해봤자 같은 문제가 재현되므로 폴백하지 않고 바로 알림
         alert(`로그인 실패: ${err.code || err.message}\n브라우저 콘솔(F12)의 에러 내용을 확인해주세요.`);

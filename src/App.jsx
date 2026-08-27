@@ -84,11 +84,9 @@ function AppContent({ userInfo, setUserInfo, adminMeta, setAdminMeta, firebaseUs
           )}
           <button onClick={() => setPage('settings')} className="btn-blue">설정</button>
           <button
-            onClick={() => {
+            onClick={async () => {
               setPage('menu');
-              onAuthStateChanged(auth, async user => {
-                if (user) await auth.signOut();
-              });
+              await auth.signOut();
             }}
             className="btn-red"
           >
